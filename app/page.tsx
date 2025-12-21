@@ -1,65 +1,158 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+import Image from 'next/image';
+import { Search, AlertTriangle, ShieldAlert } from 'lucide-react';
+import ResultCard from '@/components/ResultCard';
+import GuessOverlay from '@/components/GuessOverlay';
+import RecentChecks from '@/components/RecentChecks'; // <--- IMPORT NUEVO
 
 export default function Home() {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const [userGuess, setUserGuess] = useState<'POSTA' | 'VERSO' | 'TIBIO' | null>(null);
+  const [error, setError] = useState('');
+
+  const handleCheck = async () => {
+    // 1. VALIDACIÓN
+    if (!url.trim()) return;
+
+    if (url.trim().length < 10) {
+      setError('Che, escribí algo más largo. Con dos palabras no puedo hacer magia.');
+      return;
+    }
+
+    // Reseteamos estados
+    setLoading(true);
+    setError('');
+    setResult(null);
+    setUserGuess(null);
+
+    try {
+      const res = await fetch('/api/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urlOrText: url }),
+      });
+
+      const data = await res.json();
+
+      if (data.error) throw new Error(data.error);
+
+      // --- NUEVO: GUARDADO LOCAL SILENCIOSO (HISTORIAL) ---
+      // Guardamos en el navegador del usuario las últimas 10 búsquedas
+      const history = JSON.parse(localStorage.getItem('sarasa_history') || '[]');
+      const newEntry = {
+        url,
+        verdict: data.verdict,
+        date: new Date().toISOString()
+      };
+      localStorage.setItem('sarasa_history', JSON.stringify([newEntry, ...history].slice(0, 10)));
+      // ----------------------------------------------------
+
+      setResult(data);
+
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Se rompió algo. Probá de nuevo.');
+      setLoading(false);
+    }
+  };
+
+  const handleUserGuess = (guess: 'POSTA' | 'VERSO' | 'TIBIO') => {
+    setUserGuess(guess);
+    setLoading(false);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-background flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+
+      {/* OVERLAY DEL PRODE */}
+      {(loading || result) && !userGuess && !error && (
+        <GuessOverlay onGuess={handleUserGuess} isLoading={!result} />
+      )}
+
+      {/* HEADER CON LOGO */}
+      <div className="text-center mb-10 space-y-4 max-w-3xl z-10 flex flex-col items-center">
+        <div className="relative w-full max-w-[320px] h-auto aspect-[3/2]">
+          <Image
+            src="/logo.jpg"
+            alt="Sarasa Checker Logo"
+            width={600}
+            height={400}
+            className="object-contain drop-shadow-lg mix-blend-multiply"
+            priority
+          />
+        </div>
+        <p className="text-xl text-foreground/60 italic font-medium -mt-4">
+          El avivador de giles
+        </p>
+      </div>
+
+      {/* INPUT BUSCADOR */}
+      <div className="w-full max-w-xl z-10 mb-12">
+        <div className="relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+
+          <div className="relative bg-white rounded-lg p-2 shadow-xl flex items-center">
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Pegá el link o texto sospechoso..."
+              className="block w-full p-4 text-lg text-gray-900 placeholder-gray-500 bg-transparent border-none outline-none focus:ring-0"
+              onKeyDown={(e) => e.key === 'Enter' && handleCheck()}
+            />
+            <button
+              onClick={handleCheck}
+              disabled={loading && !result}
+              className="bg-primary hover:bg-primary/90 text-white p-4 rounded-md transition-all font-bold tracking-wide flex items-center gap-2"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+              {(loading && !result) ? '...' : <Search size={24} />}
+            </button>
+          </div>
+          <p className="text-xs text-center mt-3 text-gray-400">
+            Tip: Si tiene candadito (Paywall), copiá y pegá el texto.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        {error && (
+          <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-200">
+            <AlertTriangle size={20} />
+            {error}
+          </div>
+        )}
+      </div>
+
+      {/* TARJETA DE RESULTADO */}
+      {result && userGuess && (
+        <ResultCard data={result} userGuess={userGuess} />
+      )}
+
+      {/* NUEVO: MURO DE LA VERDAD (SOLO SI NO HAY RESULTADO ACTIVO) */}
+      {!result && !loading && (
+        <RecentChecks />
+      )}
+
+      {/* FOOTER LEGAL */}
+      {!result && !loading && (
+        <footer className="mt-auto text-center py-8 px-4 w-full max-w-2xl opacity-70 hover:opacity-100 transition-opacity">
+          <div className="flex flex-col items-center gap-2 text-xs text-gray-500 border-t pt-6">
+            <p className="font-semibold">Hecho con 🧉 y Gemini.</p>
+            <div className="flex gap-2 items-start text-justify sm:text-center max-w-lg bg-slate-100 p-3 rounded-md">
+              <ShieldAlert size={24} className="shrink-0 text-slate-400" />
+              <p>
+                <strong>Aviso Legal:</strong> Sarasa Checker utiliza Inteligencia Artificial experimental.
+                Los resultados pueden contener errores ("pifies").
+                Esta herramienta es con fines de entretenimiento y referencia rápida, no sustituye el juicio propio
+                ni la consulta de fuentes oficiales.
+              </p>
+            </div>
+          </div>
+        </footer>
+      )}
+    </main>
   );
 }
