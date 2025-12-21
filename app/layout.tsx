@@ -5,14 +5,19 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  // IMPORTANTE: Esto arregla que no encuentre la imagen en Vercel
+  metadataBase: new URL('https://sarasa-checker.vercel.app'),
+
   title: "Sarasa Checker | El avivador de giles",
-  description: "Detectá fake news, versos y humo con Inteligencia Artificial. Antes de compartir en el grupo de la familia, chequealo acá.",
-  keywords: ["fake news", "argentina", "ia", "fact check", "verificador", "sarasa"],
+  description: "🛑 ¡Pará la mano! Antes de compartir esa cadena en el grupo, fijate si es humo o si es posta. Chequealo con IA.",
+
+  keywords: ["fake news", "argentina", "ia", "fact check", "verificador", "sarasa", "milei", "politica"],
   authors: [{ name: "Sarasa Team" }],
+
   openGraph: {
     title: "Sarasa Checker | El avivador de giles",
-    description: "🐢 ¿Te están caminando? Sacate la duda con IA.",
-    url: "https://sarasa-checker.vercel.app", // Esto lo cambiamos cuando tengas el link real
+    description: "🕵️‍♂️ Detectá versos y noticias falsas al toque. No te comas el amague.",
+    url: "https://sarasa-checker.vercel.app",
     siteName: "Sarasa Checker",
     locale: "es_AR",
     type: "website",
