@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { tavily } from '@tavily/core';
 import { NextResponse } from 'next/server';
 
-// 1. Configuración de Clientes (Las llaves del reino)
+// 1. Configuración de Clientes
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY! });
 const supabase = createClient(
@@ -11,33 +11,30 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Función auxiliar para limpiar la URL (Normalización)
+// Función auxiliar para normalizar URL
 function normalizeUrl(url: string) {
   try {
     const urlObj = new URL(url);
-    // Quitamos 'www.' y la barra final para estandarizar
     return urlObj.hostname.replace('www.', '') + urlObj.pathname.replace(/\/$/, '');
   } catch (e) {
-    return url; // Si es texto plano, lo devolvemos tal cual
+    return url;
   }
 }
 
-export const maxDuration = 60; // Damos tiempo a Tavily y Gemini (Serverless limit)
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
+    // CORRECCIÓN AQUÍ: Leemos 'urlOrText' que es lo que manda el page.tsx
     const { urlOrText: userQuery } = await req.json();
 
     if (!userQuery) {
       return NextResponse.json({ error: 'Falta la URL o el texto, che.' }, { status: 400 });
     }
 
-    // --- PASO 1: VERIFICAR MEMORIA (CACHE) ---
-    // Antes de gastar, miramos si ya lo chequeamos.
-
+    // --- PASO 1: CACHE ---
     const normalizedQuery = normalizeUrl(userQuery);
 
-    // Buscamos coincidencia parcial para ser flexibles
     const { data: cachedData, error: dbError } = await supabase
       .from('checks')
       .select('*')
@@ -46,13 +43,11 @@ export async function POST(req: Request) {
       .single();
 
     if (cachedData && !dbError) {
-      console.log('¡Dato recuperado de la memoria! Ahorramos costos.');
-      // Devolvemos el JSON que ya teníamos guardado
+      console.log('¡Dato recuperado de la memoria!');
       return NextResponse.json(cachedData.gemini_verdict);
     }
 
-    // --- PASO 2: INVESTIGACIÓN (TAVILY) ---
-    // Si no está en memoria, a laburar.
+    // --- PASO 2: TAVILY ---
     console.log('Investigando con Tavily...');
     const searchResult = await tvly.search(userQuery, {
       searchDepth: "advanced",
@@ -61,10 +56,10 @@ export async function POST(req: Request) {
 
     const context = searchResult.results.map((r: any) => `${r.title}: ${r.content}`).join('\n');
 
-    // --- PASO 3: ANÁLISIS (GEMINI) ---
+    // --- PASO 3: GEMINI ---
     const model = genAI.getGenerativeModel({
       model: "gemini-1.5-flash",
-      generationConfig: { responseMimeType: "application/json" } // Forzamos JSON siempre
+      generationConfig: { responseMimeType: "application/json" }
     });
 
     const prompt = `
@@ -93,21 +88,19 @@ export async function POST(req: Request) {
     const responseText = result.response.text();
     const verificationResult = JSON.parse(responseText);
 
-    // --- PASO 4: GUARDAR EN MEMORIA (SUPABASE) ---
-
+    // --- PASO 4: GUARDAR EN MEMORIA ---
     const { error: insertError } = await supabase
       .from('checks')
       .insert({
-        original_text_url: userQuery,        // Guardamos lo que puso el usuario
-        gemini_verdict: verificationResult,  // Guardamos el JSON completo de Gemini
-        smoke_level: verificationResult.smoke_level, // Columna para el gráfico de humo
-        verdict: verificationResult.verdict, // Columna para filtros (FALSO/VERDADERO)
-        title: verificationResult.title      // <--- ¡IMPORTANTE! Para mostrar en la Home
+        original_text_url: userQuery,
+        gemini_verdict: verificationResult,
+        smoke_level: verificationResult.smoke_level,
+        verdict: verificationResult.verdict,
+        title: verificationResult.title
       });
 
     if (insertError) {
       console.error('Error guardando en Supabase:', insertError);
-      // No frenamos el flujo si falla el guardado, pero lo logueamos
     }
 
     return NextResponse.json(verificationResult);
@@ -115,7 +108,6 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Error en el proceso:', error);
 
-    // --- MANEJO DE ERROR 429 (QUOTA EXCEEDED) ---
     if (error.message?.includes('429') || error.status === 429) {
       return NextResponse.json({
         verdict: "DUDOSO",
