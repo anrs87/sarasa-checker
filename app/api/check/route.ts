@@ -26,7 +26,7 @@ export const maxDuration = 60; // Damos tiempo a Tavily y Gemini (Serverless lim
 
 export async function POST(req: Request) {
   try {
-    const { url: userQuery } = await req.json();
+    const { urlOrText: userQuery } = await req.json();
 
     if (!userQuery) {
       return NextResponse.json({ error: 'Falta la URL o el texto, che.' }, { status: 400 });

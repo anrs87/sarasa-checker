@@ -138,3 +138,26 @@ Sistema de Diseño (Tailwind): Se configuró tailwind.config.ts con una paleta d
 Utilidades: Creación de lib/utils.ts para el manejo dinámico de clases CSS.
 
 ✅ Estado Actual: El código está commiteado, las dependencias instaladas y la aplicación corre localmente con el flujo completo: Input -> Prode -> Análisis IA/Caché -> Resultado Gamificado.
+
+📱 UX MOBILE & DATABASE SYNC (Ajuste Fino)
+Mejoramos la legibilidad en celulares y ajustamos las tuercas del guardado de datos.
+
+Frontend (Tarjetas de Alto Impacto):
+
+Reemplazamos las tarjetas blancas lavadas de "Recién Salidos del Horno" por Tarjetas Semáforo.
+
+Ahora usan un borde lateral de color (Verde/Rojo/Amarillo) para que el veredicto se entienda en un milisegundo al scrollear en el celular.
+
+Reemplazamos la URL cruda por el Título Ganchero generado por la IA.
+
+Backend (Sincronización de Memoria):
+
+Fix en route.ts: La API se estaba olvidando de guardar el title en la base de datos. Ahora el insert incluye el título irónico para mostrarlo en la home.
+
+Limpieza de Código: Se eliminaron "tags fantasmas" (referencias de citación) que se habían colado en el código y generaban ruido en el editor.
+
+Base de Datos (Supabase):
+
+Estandarización definitiva de columnas: verdict (texto), smoke_level (número) y title (texto).
+
+✅ Estado: El historial ahora se ve "flama" en mobile y los datos se guardan completos.
