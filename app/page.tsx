@@ -2,16 +2,15 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Search, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Search, AlertTriangle, ShieldAlert, Coffee } from 'lucide-react';
 import ResultCard from '@/components/ResultCard';
 import GuessOverlay from '@/components/GuessOverlay';
-import RecentChecks from '@/components/RecentChecks'; // <--- IMPORT NUEVO
+import RecentChecks from '@/components/RecentChecks';
 
 export default function Home() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
-
   const [userGuess, setUserGuess] = useState<'POSTA' | 'VERSO' | 'TIBIO' | null>(null);
   const [error, setError] = useState('');
 
@@ -19,8 +18,8 @@ export default function Home() {
     // 1. VALIDACIÓN
     if (!url.trim()) return;
 
-    if (url.trim().length < 10) {
-      setError('Che, escribí algo más largo. Con dos palabras no puedo hacer magia.');
+    if (url.trim().length < 5) {
+      setError('Che, escribí algo más largo. Con dos letras no hacemos nada.');
       return;
     }
 
@@ -41,12 +40,13 @@ export default function Home() {
 
       if (data.error) throw new Error(data.error);
 
-      // --- NUEVO: GUARDADO LOCAL SILENCIOSO (HISTORIAL) ---
+      // --- GUARDADO LOCAL SILENCIOSO (HISTORIAL) ---
       // Guardamos en el navegador del usuario las últimas 10 búsquedas
       const history = JSON.parse(localStorage.getItem('sarasa_history') || '[]');
       const newEntry = {
         url,
         verdict: data.verdict,
+        title: data.title, // Guardamos el título irónico
         date: new Date().toISOString()
       };
       localStorage.setItem('sarasa_history', JSON.stringify([newEntry, ...history].slice(0, 10)));
@@ -75,8 +75,8 @@ export default function Home() {
       )}
 
       {/* HEADER CON LOGO */}
-      <div className="text-center mb-10 space-y-4 max-w-3xl z-10 flex flex-col items-center">
-        <div className="relative w-full max-w-[320px] h-auto aspect-[3/2]">
+      <div className="text-center mb-8 space-y-4 max-w-3xl z-10 flex flex-col items-center">
+        <div className="relative w-full max-w-[280px] sm:max-w-[320px] h-auto aspect-[3/2]">
           <Image
             src="/logo.jpg"
             alt="Sarasa Checker Logo"
@@ -92,7 +92,7 @@ export default function Home() {
       </div>
 
       {/* INPUT BUSCADOR */}
-      <div className="w-full max-w-xl z-10 mb-12">
+      <div className="w-full max-w-xl z-10 mb-6">
         <div className="relative group">
           <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
 
@@ -126,12 +126,36 @@ export default function Home() {
         )}
       </div>
 
+      {/* BOTONES DE DONACIÓN SUTILES (CON TUS LINKS) */}
+      {!result && !loading && (
+        <div className="flex flex-wrap justify-center gap-4 mb-12 animate-in fade-in zoom-in duration-700 delay-300">
+          <a
+            href="https://cafecito.app/sarasachecker"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full text-sm font-medium transition-colors border border-slate-200"
+          >
+            <Coffee size={16} />
+            Bancá la parada
+          </a>
+          <a
+            href="https://ko-fi.com/sarasachecker"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full text-sm font-medium transition-colors border border-slate-200"
+          >
+            <span className="text-green-600 font-bold">$</span>
+            Tirame un centro
+          </a>
+        </div>
+      )}
+
       {/* TARJETA DE RESULTADO */}
       {result && userGuess && (
         <ResultCard data={result} userGuess={userGuess} />
       )}
 
-      {/* NUEVO: MURO DE LA VERDAD (SOLO SI NO HAY RESULTADO ACTIVO) */}
+      {/* MURO DE LA VERDAD (SOLO SI NO HAY RESULTADO ACTIVO) */}
       {!result && !loading && (
         <RecentChecks />
       )}
@@ -140,7 +164,7 @@ export default function Home() {
       {!result && !loading && (
         <footer className="mt-auto text-center py-8 px-4 w-full max-w-2xl opacity-70 hover:opacity-100 transition-opacity">
           <div className="flex flex-col items-center gap-2 text-xs text-gray-500 border-t pt-6">
-            <p className="font-semibold">Hecho con 🧉 y Gemini.</p>
+            <p className="font-semibold">Hecho con 🧉 y Gemini + Groq.</p>
             <div className="flex gap-2 items-start text-justify sm:text-center max-w-lg bg-slate-100 p-3 rounded-md">
               <ShieldAlert size={24} className="shrink-0 text-slate-400" />
               <p>
