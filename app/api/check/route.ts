@@ -12,7 +12,6 @@ const supabase = createClient(
 );
 
 // Función auxiliar para limpiar la URL (Normalización)
-// Esto evita que "google.com" y "www.google.com" cuenten como dos chequeos distintos
 function normalizeUrl(url: string) {
   try {
     const urlObj = new URL(url);
@@ -35,11 +34,10 @@ export async function POST(req: Request) {
 
     // --- PASO 1: VERIFICAR MEMORIA (CACHE) ---
     // Antes de gastar, miramos si ya lo chequeamos.
-    // Referencia Documento: "Primero, buscar en Supabase si esa URL ya fue verificada" [cite: 446]
 
     const normalizedQuery = normalizeUrl(userQuery);
 
-    // Buscamos coincidencia en la columna 'original_text_url' o una nueva columna de hash si quisieras ser más estricto
+    // Buscamos coincidencia parcial para ser flexibles
     const { data: cachedData, error: dbError } = await supabase
       .from('checks')
       .select('*')
@@ -49,7 +47,8 @@ export async function POST(req: Request) {
 
     if (cachedData && !dbError) {
       console.log('¡Dato recuperado de la memoria! Ahorramos costos.');
-      return NextResponse.json(cachedData.gemini_verdict); // Devolvemos el JSON guardado
+      // Devolvemos el JSON que ya teníamos guardado
+      return NextResponse.json(cachedData.gemini_verdict);
     }
 
     // --- PASO 2: INVESTIGACIÓN (TAVILY) ---
@@ -63,7 +62,6 @@ export async function POST(req: Request) {
     const context = searchResult.results.map((r: any) => `${r.title}: ${r.content}`).join('\n');
 
     // --- PASO 3: ANÁLISIS (GEMINI) ---
-    // Referencia Documento: Prompt del Sistema con personalidad argentina [cite: 627]
     const model = genAI.getGenerativeModel({
       model: "gemini-1.5-flash",
       generationConfig: { responseMimeType: "application/json" } // Forzamos JSON siempre
@@ -82,8 +80,8 @@ export async function POST(req: Request) {
       Output JSON ESTRICTO requerido:
       {
         "verdict": "VERDADERO" | "FALSO" | "DUDOSO" | "SATIRA",
-        "smoke_level": (número 0-100, donde 100 es puro humo/mentira),
-        "title": "Título corto, irónico y ganchero",
+        "smoke_level": (número entero 0-100, donde 100 es puro humo/mentira),
+        "title": "Título corto, irónico y ganchero (máx 6 palabras)",
         "summary": "Explicación de 3 líneas máximo, hablándole al usuario de 'vos'.",
         "diplomatic_message": "Un mensaje corto, amable y sin confrontación, redactado listo para copiar y pegar en un grupo de WhatsApp familiar para desmentir la noticia sin pelear.",
         "sources": [{"title": "Fuente", "url": "..."}]
@@ -96,21 +94,20 @@ export async function POST(req: Request) {
     const verificationResult = JSON.parse(responseText);
 
     // --- PASO 4: GUARDAR EN MEMORIA (SUPABASE) ---
-    // Guardamos para la próxima (Cachear el futuro)
-    // Referencia Documento: Guardar diplomatic_message y smoke_level [cite: 572, 640]
 
     const { error: insertError } = await supabase
       .from('checks')
       .insert({
-        original_text_url: userQuery, // Guardamos lo que puso el usuario
-        gemini_verdict: verificationResult, // Guardamos el JSON completo de Gemini
-        smoke_level: verificationResult.smoke_level, // Columna dedicada para analytics
-        verdict: verificationResult.verdict // Columna dedicada para filtros rápidos
+        original_text_url: userQuery,        // Guardamos lo que puso el usuario
+        gemini_verdict: verificationResult,  // Guardamos el JSON completo de Gemini
+        smoke_level: verificationResult.smoke_level, // Columna para el gráfico de humo
+        verdict: verificationResult.verdict, // Columna para filtros (FALSO/VERDADERO)
+        title: verificationResult.title      // <--- ¡IMPORTANTE! Para mostrar en la Home
       });
 
     if (insertError) {
       console.error('Error guardando en Supabase:', insertError);
-      // No frenamos el flujo, pero lo logueamos
+      // No frenamos el flujo si falla el guardado, pero lo logueamos
     }
 
     return NextResponse.json(verificationResult);
@@ -119,7 +116,6 @@ export async function POST(req: Request) {
     console.error('Error en el proceso:', error);
 
     // --- MANEJO DE ERROR 429 (QUOTA EXCEEDED) ---
-    // Esto arregla la pantalla roja que viste.
     if (error.message?.includes('429') || error.status === 429) {
       return NextResponse.json({
         verdict: "DUDOSO",
