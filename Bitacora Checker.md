@@ -94,3 +94,47 @@ Frontend: ✅ Integrado, con logos y UX fluida.
 Base de Datos: ✅ Registrando logs y chequeos.
 
 Próximo Paso: Deploy a Vercel (Publicación real).
+
+📅 Bitácora de Avance - Sarasa Checker (v1.0)
+🔧 Backend & API (Optimización y Resiliencia)
+
+Implementación de Estrategia "Cache-First": Se reescribió la lógica de api/check/route.ts para consultar primero la base de datos (Supabase) antes de llamar a la IA. Esto reduce costos y evita el error 429 (Too Many Requests) por saturación de cuota.
+
+
+
+Manejo de Errores 429: Se agregó una captura específica para cuando la API de Google Gemini rechaza la conexión, devolviendo un mensaje amigable al usuario ("Se nos recalentó el mate") en lugar de fallar silenciosamente.
+
+Normalización de URLs: Se añadió lógica para evitar duplicados en la base de datos (ej: tratar www.google.com y google.com como el mismo registro).
+
+🏗️ Infraestructura y Dependencias
+
+Resolución de Bloqueo de Espacio (ENOSPC): Se solucionó el error crítico de espacio en disco que impedía la instalación de paquetes.
+
+
+Instalación del Stack Completo: Se integraron exitosamente las librerías @tavily/core (Búsqueda), @google/generative-ai (IA), @supabase/supabase-js (BD) y utilidades de UI (lucide-react, clsx, tailwind-merge).
+
+
+🎨 Frontend & Experiencia de Usuario (Gamificación)
+
+Componente ResultCard.tsx Definitivo: Se fusionó el diseño visual avanzado con la lógica de negocio. Incluye:
+
+
+Badges de Acierto: Feedback visual según si el usuario adivinó o no ("¡Estás afilado!" vs "¡Te salvamos!").
+
+
+Mensaje Diplomático: Tarjeta dedicada con botón de copiado rápido para "El Mensaje para la Tía" (WhatsApp).
+
+Fuentes Clasificadas: Lista de evidencias con etiquetas visuales según el tipo de medio (Oficial, Medio, Social).
+
+Implementación del "Prode de la Verdad": Se modificó page.tsx para incluir el Interaction Gap. Ahora el usuario debe votar ("Es Posta" vs "Es Verso") mientras la IA procesa, aumentando la retención y el aspecto lúdico.
+
+
+El "Humómetro": Visualización de barra de progreso (0-100%) para indicar el nivel de falsedad de la noticia.
+
+💅 Estilos y Configuración
+
+Sistema de Diseño (Tailwind): Se configuró tailwind.config.ts con una paleta de colores semánticos personalizada (status-truth, status-fake, status-warning, status-satire) para mantener coherencia visual.
+
+Utilidades: Creación de lib/utils.ts para el manejo dinámico de clases CSS.
+
+✅ Estado Actual: El código está commiteado, las dependencias instaladas y la aplicación corre localmente con el flujo completo: Input -> Prode -> Análisis IA/Caché -> Resultado Gamificado.
