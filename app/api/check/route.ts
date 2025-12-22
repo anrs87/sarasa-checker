@@ -67,56 +67,57 @@ export async function POST(req: Request) {
     const context = searchResult.results.map((r: any) => `${r.title}: ${r.content}`).join('\n');
     const sources = searchResult.results.map((r: any) => ({ title: r.title, url: r.url }));
 
-    // --- PASO 3: CEREBRO HÍBRIDO ---
+    // --- PASO 3: CEREBRO HÍBRIDO (GROQ TITULAR) ---
     let verificationResult = null;
-    let aiModelUsed = 'gemini';
+    let aiModelUsed = 'groq';
 
-    // INTENTO A: GEMINI 2.0 (¡EL MODELO QUE SÍ TENÉS!)
+    // INTENTO A: GROQ (Llama 3.3) - ¡AHORA ES EL PRIMERO!
     try {
-      console.log('🧠 [Intento 1] Consultando a Gemini 2.0 Flash...');
+      console.log('🚀 [Intento 1] Consultando a Groq (Llama 3.3)...');
 
-      const model = genAI.getGenerativeModel({
-        // CAMBIO: Usamos el modelo que apareció en TU lista
-        model: "gemini-2.0-flash-exp",
-        generationConfig: { responseMimeType: "application/json" }
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT + " IMPORTANTE: Devuelve SOLO JSON." },
+          { role: "user", content: `Input: "${userQuery}"\nFuentes: ${context}` }
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.5,
+        response_format: { type: "json_object" },
       });
 
-      const prompt = `${SYSTEM_PROMPT}\nInput Usuario: "${userQuery}"\nFuentes: ${context}`;
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      verificationResult = JSON.parse(responseText);
+      const content = chatCompletion.choices[0]?.message?.content || "{}";
+      verificationResult = JSON.parse(content);
+      // aiModelUsed ya es 'groq'
 
-    } catch (geminiError: any) {
-      console.error('⚠️ Gemini falló:', geminiError.message);
+    } catch (groqError: any) {
+      console.error('❌ Groq falló:', groqError.message);
 
-      // INTENTO B: GROQ (Llama 3.3)
+      // INTENTO B: GEMINI (Backup)
       try {
-        console.log('🚀 [Intento 2] Activando Protocolo Groq (Llama 3.3)...');
+        console.log('🧠 [Intento 2] Activando Respaldo Gemini...');
 
-        const chatCompletion = await groq.chat.completions.create({
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT + " IMPORTANTE: Devuelve SOLO JSON." },
-            { role: "user", content: `Input: "${userQuery}"\nFuentes: ${context}` }
-          ],
-          model: "llama-3.3-70b-versatile",
-          temperature: 0.5,
-          response_format: { type: "json_object" },
+        // Usamos el alias genérico que aparecía en tu lista, suele ser más permisivo
+        const model = genAI.getGenerativeModel({
+          model: "gemini-flash-latest",
+          generationConfig: { responseMimeType: "application/json" }
         });
 
-        const content = chatCompletion.choices[0]?.message?.content || "{}";
-        verificationResult = JSON.parse(content);
-        aiModelUsed = 'groq';
+        const prompt = `${SYSTEM_PROMPT}\nInput Usuario: "${userQuery}"\nFuentes: ${context}`;
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+        verificationResult = JSON.parse(responseText);
+        aiModelUsed = 'gemini';
 
-      } catch (groqError: any) {
-        console.error('❌ Groq también falló:', groqError.message);
+      } catch (geminiError: any) {
+        console.error('⚠️ Gemini también falló:', geminiError.message);
 
-        // INTENTO C: MODO RESPALDO
-        console.log('🛡️ Activando Modo Respaldo (Solo Evidencia)');
+        // INTENTO C: MODO EVIDENCIA
+        console.log('🛡️ Activando Modo Solo Evidencia');
         verificationResult = {
           verdict: "DUDOSO",
           smoke_level: 50,
-          title: "Investigalo vos (Las IAs duermen)",
-          summary: "Encontramos estas fuentes, pero nuestras IAs están saturadas. Fijate los links abajo.",
+          title: "Investigalo vos (IAs saturadas)",
+          summary: "Encontramos estas fuentes, pero nuestras IAs están descansando. Fijate los links.",
           diplomatic_message: "Che, mirá estos links que encontré sobre el tema.",
           sources: sources
         };
