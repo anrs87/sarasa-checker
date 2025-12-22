@@ -11,7 +11,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Función auxiliar para normalizar URL
 function normalizeUrl(url: string) {
   try {
     const urlObj = new URL(url);
@@ -25,16 +24,14 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
-    // CORRECCIÓN AQUÍ: Leemos 'urlOrText' que es lo que manda el page.tsx
     const { urlOrText: userQuery } = await req.json();
 
     if (!userQuery) {
-      return NextResponse.json({ error: 'Falta la URL o el texto, che.' }, { status: 400 });
+      return NextResponse.json({ error: 'Falta el texto, che.' }, { status: 400 });
     }
 
     // --- PASO 1: CACHE ---
     const normalizedQuery = normalizeUrl(userQuery);
-
     const { data: cachedData, error: dbError } = await supabase
       .from('checks')
       .select('*')
@@ -43,12 +40,11 @@ export async function POST(req: Request) {
       .single();
 
     if (cachedData && !dbError) {
-      console.log('¡Dato recuperado de la memoria!');
       return NextResponse.json(cachedData.gemini_verdict);
     }
 
-    // --- PASO 2: TAVILY ---
-    console.log('Investigando con Tavily...');
+    // --- PASO 2: INVESTIGACIÓN ---
+    console.log('🕵️ Investigando con Tavily...');
     const searchResult = await tvly.search(userQuery, {
       searchDepth: "advanced",
       maxResults: 5,
@@ -56,15 +52,19 @@ export async function POST(req: Request) {
 
     const context = searchResult.results.map((r: any) => `${r.title}: ${r.content}`).join('\n');
 
-    // --- PASO 3: GEMINI ---
+    // --- PASO 3: ANÁLISIS (USANDO 1.5 FLASH) ---
+    console.log('🧠 Consultando a Gemini 1.5 Flash-latest...');
+
+    // Usamos este modelo ESPECÍFICO que vimos en tu lista (image_ec522b.png)
+    // Es 2.0 (que te funciona) y Lite (para que no salte el error de cuota)
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash-lite-preview-02-05",
       generationConfig: { responseMimeType: "application/json" }
     });
 
     const prompt = `
-      Actúa como un experto verificador de datos argentino ("El Avivador"). 
-      Tu personalidad: Perspicaz, directo, usas lunfardo sutil ("es humo", "la posta", "ojo al piojo").
+      Actúa como "El Avivador", experto verificador argentino. 
+      Personalidad: Directo, usas lunfardo sutil ("es humo", "la posta", "ojo al piojo").
       
       Tarea: Analiza la veracidad del siguiente texto/URL basándote en las fuentes encontradas.
       
@@ -72,50 +72,44 @@ export async function POST(req: Request) {
       Fuentes encontradas: 
       ${context}
 
-      Output JSON ESTRICTO requerido:
+      Responde UNICAMENTE en JSON:
       {
         "verdict": "VERDADERO" | "FALSO" | "DUDOSO" | "SATIRA",
-        "smoke_level": (número entero 0-100, donde 100 es puro humo/mentira),
-        "title": "Título corto, irónico y ganchero (máx 6 palabras)",
+        "smoke_level": 0-100,
+        "title": "Título corto e irónico (máx 6 palabras)",
         "summary": "Explicación de 3 líneas máximo, hablándole al usuario de 'vos'.",
-        "diplomatic_message": "Un mensaje corto, amable y sin confrontación, redactado listo para copiar y pegar en un grupo de WhatsApp familiar para desmentir la noticia sin pelear.",
+        "diplomatic_message": "Un mensaje amable para WhatsApp para desmentir la noticia sin pelear.",
         "sources": [{"title": "Fuente", "url": "..."}]
       }
     `;
 
-    console.log('Consultando a Gemini...');
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
     const verificationResult = JSON.parse(responseText);
 
-    // --- PASO 4: GUARDAR EN MEMORIA ---
-    const { error: insertError } = await supabase
-      .from('checks')
-      .insert({
-        original_text_url: userQuery,
-        gemini_verdict: verificationResult,
-        smoke_level: verificationResult.smoke_level,
-        verdict: verificationResult.verdict,
-        title: verificationResult.title
-      });
-
-    if (insertError) {
-      console.error('Error guardando en Supabase:', insertError);
-    }
+    // --- PASO 4: GUARDAR EN SUPABASE ---
+    await supabase.from('checks').insert({
+      original_text_url: userQuery,
+      gemini_verdict: verificationResult,
+      smoke_level: verificationResult.smoke_level,
+      verdict: verificationResult.verdict,
+      title: verificationResult.title
+    });
 
     return NextResponse.json(verificationResult);
 
   } catch (error: any) {
-    console.error('Error en el proceso:', error);
+    console.error('💥 Error en el proceso:', error.message);
 
+    // Manejo específico del error de cuota (429)
     if (error.message?.includes('429') || error.status === 429) {
       return NextResponse.json({
         verdict: "DUDOSO",
-        title: "¡Se nos recalentó el mate!",
-        summary: "Mucha gente avivándose al mismo tiempo. Google nos pidió un respiro. Probá en 1 minuto.",
+        title: "¡Google se quedó sin aire!",
+        summary: "Estamos probando tanto que Google nos pidió un respiro. Aguantá un minutito y probá de nuevo.",
         smoke_level: 50,
         sources: [],
-        diplomatic_message: "Che, el sistema está saturado, pruebo en un rato."
+        diplomatic_message: "Che, el sistema está un poco saturado por las pruebas, en un ratito volvemos a chequear."
       }, { status: 429 });
     }
 
