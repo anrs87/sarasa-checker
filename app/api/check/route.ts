@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { tavily } from '@tavily/core';
-import Groq from 'groq-sdk'; // <--- IMPORT NUEVO
+import Groq from 'groq-sdk';
 import { NextResponse } from 'next/server';
-import { normalizeUrl } from '@/lib/utils'; // Usamos la nueva función del utils
+import { normalizeUrl } from '@/lib/utils';
 
 // 1. Configuración de Clientes
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! }); // <--- CLIENTE GROQ
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
 const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY! });
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,7 +16,6 @@ const supabase = createClient(
 
 export const maxDuration = 60;
 
-// Prompt Maestro reutilizable para ambas IAs
 const SYSTEM_PROMPT = `
   Actúa como "El Avivador", experto verificador argentino. 
   Personalidad: Directo, usas lunfardo sutil ("es humo", "la posta", "ojo al piojo").
@@ -42,19 +41,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Falta el texto, che.' }, { status: 400 });
     }
 
-    // --- PASO 1: CACHE (Búsqueda inteligente) ---
+    // --- PASO 1: CACHE ---
     const normalizedQuery = normalizeUrl(userQuery);
     console.log(`🔍 Buscando en caché: ${normalizedQuery}`);
 
     const { data: cachedData, error: dbError } = await supabase
       .from('checks')
       .select('*')
-      .ilike('original_text_url', `%${normalizedQuery}%`) // Buscamos coincidencia parcial
+      .ilike('original_text_url', `%${normalizedQuery}%`)
       .limit(1)
       .single();
 
     if (cachedData && !dbError) {
-      console.log('⚡ ¡Encontrado en Cache! Ahorrando cuota...');
+      console.log('⚡ ¡Encontrado en Cache!');
       return NextResponse.json(cachedData.gemini_verdict);
     }
 
@@ -68,15 +67,17 @@ export async function POST(req: Request) {
     const context = searchResult.results.map((r: any) => `${r.title}: ${r.content}`).join('\n');
     const sources = searchResult.results.map((r: any) => ({ title: r.title, url: r.url }));
 
-    // --- PASO 3: CEREBRO HÍBRIDO (Gemini -> Fallback Groq -> Fallback Solo Evidencia) ---
+    // --- PASO 3: CEREBRO HÍBRIDO ---
     let verificationResult = null;
     let aiModelUsed = 'gemini';
 
-    // INTENTO A: GEMINI
+    // INTENTO A: GEMINI 2.0 (¡EL MODELO QUE SÍ TENÉS!)
     try {
-      console.log('🧠 [Intento 1] Consultando a Gemini 1.5 Flash...');
+      console.log('🧠 [Intento 1] Consultando a Gemini 2.0 Flash...');
+
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash", // Usamos Flash que es más rápido y barato
+        // CAMBIO: Usamos el modelo que apareció en TU lista
+        model: "gemini-2.0-flash",
         generationConfig: { responseMimeType: "application/json" }
       });
 
@@ -86,55 +87,52 @@ export async function POST(req: Request) {
       verificationResult = JSON.parse(responseText);
 
     } catch (geminiError: any) {
-      console.error('⚠️ Gemini falló (posible 429):', geminiError.message);
+      console.error('⚠️ Gemini falló:', geminiError.message);
 
-      // INTENTO B: GROQ (Si Gemini falla)
+      // INTENTO B: GROQ (Llama 3.3)
       try {
-        console.log('🚀 [Intento 2] Activando Protocolo Groq (Llama 3)...');
+        console.log('🚀 [Intento 2] Activando Protocolo Groq (Llama 3.3)...');
 
         const chatCompletion = await groq.chat.completions.create({
           messages: [
             { role: "system", content: SYSTEM_PROMPT + " IMPORTANTE: Devuelve SOLO JSON." },
             { role: "user", content: `Input: "${userQuery}"\nFuentes: ${context}` }
           ],
-          model: "llama3-70b-8192", // Modelo open source potentísimo
+          model: "llama-3.3-70b-versatile",
           temperature: 0.5,
-          response_format: { type: "json_object" }, // Forzamos JSON
+          response_format: { type: "json_object" },
         });
 
         const content = chatCompletion.choices[0]?.message?.content || "{}";
         verificationResult = JSON.parse(content);
-        aiModelUsed = 'groq-llama3';
+        aiModelUsed = 'groq';
 
       } catch (groqError: any) {
         console.error('❌ Groq también falló:', groqError.message);
 
-        // INTENTO C: MODO "SOLO EVIDENCIA" (Si todo falla)
+        // INTENTO C: MODO RESPALDO
         console.log('🛡️ Activando Modo Respaldo (Solo Evidencia)');
         verificationResult = {
-          verdict: "DUDOSO", // Gris neutro
+          verdict: "DUDOSO",
           smoke_level: 50,
           title: "Investigalo vos (Las IAs duermen)",
-          summary: "Encontramos estas fuentes, pero nuestras IAs están saturadas para leerlas ahora. Fijate los links abajo.",
+          summary: "Encontramos estas fuentes, pero nuestras IAs están saturadas. Fijate los links abajo.",
           diplomatic_message: "Che, mirá estos links que encontré sobre el tema.",
           sources: sources
         };
-        aiModelUsed = 'fallback-evidence';
+        aiModelUsed = 'fallback';
       }
     }
 
-    // --- PASO 4: GUARDAR EN SUPABASE ---
-    // Guardamos SIEMPRE, incluso si fue Groq o Fallback, para no gastar de nuevo
+    // --- PASO 4: GUARDAR ---
     if (verificationResult) {
-      console.log(`💾 Guardando en base de datos (Motor: ${aiModelUsed})...`);
-
-      // Aseguramos que sources esté presente
       if (!verificationResult.sources || verificationResult.sources.length === 0) {
         verificationResult.sources = sources;
       }
 
+      console.log(`💾 Guardando (Motor: ${aiModelUsed})...`);
       await supabase.from('checks').insert({
-        original_text_url: normalizedQuery, // Guardamos la URL limpia
+        original_text_url: normalizedQuery,
         gemini_verdict: verificationResult,
         smoke_level: verificationResult.smoke_level || 50,
         verdict: verificationResult.verdict,

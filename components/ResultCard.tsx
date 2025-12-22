@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Check, Copy, ExternalLink, Coffee, DollarSign, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils'; // Asegurate de haber creado el archivo lib/utils.ts que te pasé antes
+import { Check, Copy, ExternalLink, Coffee, DollarSign, Share2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-// Definimos los tipos para que TypeScript no se queje y te ayude con el autocompletado
 interface Source {
     title: string;
     url: string;
-    type?: 'OFICIAL' | 'MEDIO' | 'SOCIAL' | 'DUDOSO'; // Opcional por si la IA se olvida de mandarlo
+    type?: 'OFICIAL' | 'MEDIO' | 'SOCIAL' | 'DUDOSO';
 }
 
 interface ResultData {
@@ -28,7 +27,7 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
 
     const isFake = data.smoke_level > 50;
 
-    // --- LÓGICA DE GAMIFICATION (Tu toque maestro) ---
+    // --- LOGICA GAMIFICATION ---
     let badgeText = "";
     let badgeColor = "";
 
@@ -37,21 +36,26 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
         badgeColor = "bg-slate-500";
     } else if (userGuess) {
         const userGuessedFake = userGuess === 'VERSO';
-        // Logic: Si es fake y dijiste verso (Hit) O si es verdad y dijiste posta (Hit)
         const hit = (isFake && userGuessedFake) || (!isFake && !userGuessedFake);
 
         if (hit) {
             badgeText = "🎯 ¡Estás afilado! La viste venir.";
-            badgeColor = "bg-status-truth"; // Requiere configurar tailwind.config.ts
+            badgeColor = "bg-green-600";
         } else {
             badgeText = "🛡️ ¡Te salvamos! Entraste como un caballo.";
-            badgeColor = "bg-status-fake"; // Requiere configurar tailwind.config.ts
+            badgeColor = "bg-red-600";
         }
     }
 
-    // Helper para copiar al portapapeles
+    // --- NUEVA LÓGICA DE COPIADO INTELIGENTE ---
     const handleCopy = () => {
-        navigator.clipboard.writeText(data.diplomatic_message);
+        // Armamos un mensaje "Rich Text" para WhatsApp
+        const emojiVerdict = data.verdict === 'VERDADERO' ? '✅' : data.verdict === 'FALSO' ? '❌' : '⚠️';
+        const sourceLink = data.sources?.[0]?.url || 'Fuente no disponible';
+
+        const fullMessage = `*${emojiVerdict} VEREDICTO: ${data.verdict}*\n\n"${data.title}"\n\n💬 ${data.diplomatic_message}\n\n🔍 Fuente: ${sourceLink}\n\n👉 Chequealo vos en: https://sarasa-checker.vercel.app`;
+
+        navigator.clipboard.writeText(fullMessage);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -59,7 +63,7 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
     return (
         <div className="w-full max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-            {/* 1. BADGE DEL PRODE (Solo si el usuario votó) */}
+            {/* BADGE DEL PRODE */}
             {userGuess && (
                 <div className={cn(
                     "text-center py-2 px-6 rounded-full text-sm font-bold tracking-wide uppercase mx-auto w-fit shadow-lg text-white transform hover:scale-105 transition-transform",
@@ -69,18 +73,17 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                 </div>
             )}
 
-            {/* 2. TARJETA PRINCIPAL */}
+            {/* TARJETA PRINCIPAL */}
             <div className="bg-white border-2 border-slate-900 rounded-xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
 
-                {/* Encabezado con Color Dinámico */}
+                {/* Encabezado */}
                 <div className={cn(
                     "p-6 text-center text-white relative overflow-hidden",
-                    data.verdict === 'VERDADERO' && "bg-status-truth",
-                    data.verdict === 'FALSO' && "bg-status-fake",
-                    data.verdict === 'DUDOSO' && "bg-status-warning text-slate-900",
-                    data.verdict === 'SATIRA' && "bg-status-satire",
+                    data.verdict === 'VERDADERO' && "bg-green-500",
+                    data.verdict === 'FALSO' && "bg-red-500",
+                    data.verdict === 'DUDOSO' && "bg-yellow-400 text-slate-900",
+                    data.verdict === 'SATIRA' && "bg-purple-500",
                 )}>
-                    {/* Pattern de fondo sutil */}
                     <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
                     <h2 className="relative z-10 text-3xl md:text-4xl font-black uppercase italic tracking-tighter mb-2 drop-shadow-sm">
@@ -90,7 +93,7 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                         "{data.title}"
                     </p>
 
-                    {/* El Humómetro Visual */}
+                    {/* Humómetro */}
                     <div className="mt-6 relative z-10">
                         <div className="flex justify-between text-xs font-bold uppercase mb-1 opacity-80">
                             <span>Verdad</span>
@@ -105,78 +108,65 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                     </div>
                 </div>
 
-                {/* Cuerpo de la Tarjeta */}
+                {/* Cuerpo */}
                 <div className="p-6 space-y-6">
 
-                    {/* Resumen */}
                     <p className="text-lg text-slate-700 leading-relaxed font-medium">
                         {data.summary}
                     </p>
 
-                    {/* MENSAJE PARA WHATSAPP (Diplomático) */}
-                    <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 relative group hover:border-green-400 transition-colors">
-                        <div className="absolute -top-3 left-4 bg-green-600 text-white text-xs font-black px-3 py-1 rounded uppercase tracking-wider shadow-sm">
-                            Para el Grupo
+                    {/* NUEVO BOTÓN DE COMPARTIR MEJORADO */}
+                    <div className="bg-slate-50 border-2 border-slate-200 rounded-lg p-4 relative group hover:border-slate-400 transition-colors">
+                        <div className="absolute -top-3 left-4 bg-slate-700 text-white text-xs font-black px-3 py-1 rounded uppercase tracking-wider shadow-sm">
+                            Compartir Resultado
                         </div>
-                        <p className="text-slate-600 italic mt-2 mb-4 pr-2 font-serif">
-                            "{data.diplomatic_message}"
+                        <p className="text-slate-500 italic mt-2 mb-4 pr-2 font-serif text-sm">
+                            "{data.diplomatic_message}..."
                         </p>
                         <button
                             onClick={handleCopy}
-                            className="w-full flex items-center justify-center gap-2 bg-white border-2 border-green-200 hover:border-green-500 hover:text-green-700 text-slate-600 font-bold py-2 px-4 rounded-md transition-all"
+                            className="w-full flex items-center justify-center gap-2 bg-white border-2 border-slate-300 hover:border-blue-500 hover:text-blue-700 text-slate-700 font-bold py-3 px-4 rounded-md transition-all shadow-sm active:translate-y-1"
                         >
-                            {copied ? <Check size={18} className="text-green-600" /> : <Copy size={18} />}
-                            {copied ? '¡Copiado!' : 'Copiar mensaje'}
+                            {copied ? <Check size={20} className="text-green-600" /> : <Share2 size={20} />}
+                            {copied ? '¡Copiado al portapapeles!' : 'Copiar Informe Completo'}
                         </button>
                     </div>
 
-                    {/* FUENTES CON SEMÁFORO DE CREDIBILIDAD */}
+                    {/* FUENTES */}
                     {data.sources && data.sources.length > 0 && (
                         <div className="text-sm border-t-2 border-slate-100 pt-4">
                             <h4 className="font-black mb-3 flex items-center gap-2 text-slate-400 uppercase text-xs tracking-wider">
                                 <ExternalLink size={14} /> Fuentes Analizadas
                             </h4>
                             <ul className="space-y-2">
-                                {data.sources.map((s, i) => {
-                                    // Lógica de colores según el tipo de fuente (Tu lógica original)
-                                    let badgeClass = "bg-gray-100 text-gray-600 border-gray-200";
-                                    let icon = "🔗";
-
-                                    // Nota: Si el backend no manda 'type', usa el default
-                                    if (s.type === 'OFICIAL') { badgeClass = "bg-blue-100 text-blue-700 border-blue-200"; icon = "🏛️"; }
-                                    if (s.type === 'MEDIO') { badgeClass = "bg-emerald-100 text-emerald-700 border-emerald-200"; icon = "📰"; }
-                                    if (s.type === 'SOCIAL') { badgeClass = "bg-orange-100 text-orange-700 border-orange-200"; icon = "📱"; }
-                                    if (s.type === 'DUDOSO') { badgeClass = "bg-red-100 text-red-700 border-red-200"; icon = "⚠️"; }
-
-                                    return (
-                                        <li key={i} className="flex items-center justify-between gap-3 group">
-                                            <a
-                                                href={s.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-slate-600 hover:text-blue-600 hover:underline truncate flex-1 font-bold transition-colors"
-                                            >
-                                                {s.title || s.url}
-                                            </a>
-                                            <span className={cn("text-[10px] font-black px-2 py-1 rounded border flex items-center gap-1 shrink-0 uppercase", badgeClass)}>
-                                                {icon} {s.type || 'WEB'}
-                                            </span>
-                                        </li>
-                                    )
-                                })}
+                                {data.sources.map((s, i) => (
+                                    <li key={i} className="flex items-center justify-between gap-3 group">
+                                        <a
+                                            href={s.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-slate-600 hover:text-blue-600 hover:underline truncate flex-1 font-bold transition-colors"
+                                        >
+                                            {s.title || s.url}
+                                        </a>
+                                        <span className="text-[10px] font-black px-2 py-1 rounded border bg-gray-100 text-gray-600 border-gray-200 flex items-center gap-1 shrink-0 uppercase">
+                                            🔗 WEB
+                                        </span>
+                                    </li>
+                                ))}
                             </ul>
                         </div>
                     )}
                 </div>
 
-                {/* FOOTER: DONACIONES */}
+                {/* FOOTER */}
                 <div className="bg-slate-50 p-6 border-t-2 border-slate-200 text-center space-y-4">
                     <p className="text-sm text-slate-500 font-medium">
                         Mantenemos esto a pulmón. Vos fijate de qué lado de la mecha te encontrás hoy:
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
                         <a
-                            href={process.env.NEXT_PUBLIC_CAFECITO_URL || "#"}
+                            href="https://cafecito.app/sarasachecker"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2 px-5 py-3 bg-[#00bfa5] text-white rounded-lg font-black shadow-sm hover:shadow-md transition-all hover:-translate-y-1 active:translate-y-0"
@@ -184,7 +174,7 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                             <Coffee size={18} /> Cafecito
                         </a>
                         <a
-                            href={process.env.NEXT_PUBLIC_KOFI_URL || "#"}
+                            href="https://ko-fi.com/sarasachecker"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2 px-5 py-3 bg-[#29abe0] text-white rounded-lg font-black shadow-sm hover:shadow-md transition-all hover:-translate-y-1 active:translate-y-0"
