@@ -161,3 +161,114 @@ Base de Datos (Supabase):
 Estandarización definitiva de columnas: verdict (texto), smoke_level (número) y title (texto).
 
 ✅ Estado: El historial ahora se ve "flama" en mobile y los datos se guardan completos.
+
+🗓️ FASE 6: REFINAMIENTO, ESTRATEGIA Y DEPLOY (La Recta Final)
+Estado: 🚀 EN PRODUCCIÓN (Online) URL: https://sarasa-checker.vercel.app
+
+🔧 1. UX y Gamification Avanzada
+Mejoramos la experiencia del usuario antes de recibir el veredicto para aumentar la retención y la "personalidad" de la app.
+
+Prode Interactivo: Implementamos GuessOverlay.tsx. Ahora el usuario debe votar ("Posta", "Verso" o "Tibio") antes de ver el resultado.
+
+Feedback Visual: Agregamos estados activos a los botones de votación y la opción "Tibio" (🐢) para los indecisos.
+
+Manejo de Espera: Solucionamos el "limbo blanco" asegurando que el estado de carga (loading) se mantenga hasta que la interacción del usuario termine.
+
+🧠 2. Lógica de Verificación y Fuentes (Backend)
+Robustecimos el cerebro de la IA para dar respuestas más confiables y transparentes.
+
+Jerarquía de Fuentes: Modificamos el SYSTEM_PROMPT en route.ts para que Gemini clasifique las fuentes en: OFICIAL, MEDIO, SOCIAL o DUDOSO.
+
+Visualización de Credibilidad: Actualizamos ResultCard.tsx para mostrar "Badges" (etiquetas de colores) al lado de cada fuente, permitiendo al usuario distinguir rápidamente entre un paper científico y un tuit.
+
+Validación de Input: Agregamos un filtro en el frontend para bloquear consultas menores a 10 caracteres, ahorrando costos de API.
+
+🧱 3. El "Muro de la Verdad" y Persistencia
+Para evitar que la app se sienta vacía y mejorar la retención sin fricción.
+
+Historial Local (Sin Login): Implementamos localStorage para guardar silenciosamente las últimas búsquedas del usuario en su navegador.
+
+Feed Comunitario: Creamos el componente RecentChecks.tsx que consulta a Supabase y muestra los últimos 3 chequeos realizados por la comunidad.
+
+Seguridad de Cliente: Creamos lib/supabase-browser.ts para separar el cliente de administración (con llave secreta) del cliente público (con llave anónima), solucionando errores de seguridad en el frontend.
+
+🎨 4. Identidad Visual y Social
+Profesionalizamos la apariencia para compartir en redes.
+
+Integración de Marca: Reemplazamos el título de texto por el logo oficial (logo.jpg) en el header.
+
+Open Graph (WhatsApp): Configuramos layout.tsx con metadataBase y ubicamos opengraph-image.jpg (versión circular neón) en la carpeta app/ para asegurar que el link se vea atractivo al compartirse.
+
+Dark Mode (Parcial): Ajustamos la estética para que los logos neón resalten sobre el fondo limpio.
+
+☁️ 5. Infraestructura y Deploy
+Llevamos el código de local a la nube.
+
+Git & GitHub: Inicializamos el repositorio, configuramos un .gitignore estricto para proteger las API Keys y subimos el código.
+
+Vercel: Conectamos el repositorio de GitHub con Vercel para CI/CD (Deploy automático al hacer push).
+
+Variables de Entorno: Configuramos las llaves de producción (GOOGLE_API_KEY, SUPABASE, etc.) en el panel de Vercel.
+
+📊 6. Analíticas
+Confirmamos que no necesitamos herramientas externas.
+
+Dashboard SQL: Creamos queries personalizadas en Supabase para medir: Total de chequeos, Veredictos (Verdad/Mentira) y el "Nivel de Humo Promedio" extrayendo datos directamente del JSON guardado por la IA.
+
+Próximos Pasos Sugeridos (Post-Lanzamiento):
+
+Monitorear el consumo de la API de Tavily/Gemini en Vercel/Supabase.
+
+Recopilar feedback de los primeros usuarios (amigos/familia).
+
+Evaluar si activar el "Modo Oscuro" nativo en toda la web para coincidir mejor con la estética Cyberpunk del logo.
+
+¡De una, socio! Acá tenés el resumen listo para copiar y pegar en tu Bitacora Checker.md.
+
+Lo escribí manteniendo el estilo "de trinchera" que venimos llevando, documentando la batalla contra los errores de Google, la aparición heroica de Groq y el plan maestro que definimos para el futuro.
+
+📅 Bitácora de Avance - Sarasa Checker (Sesión de Emergencia & Evolución)
+🚨 CRISIS Y SOLUCIÓN (El Problema de Gemini)
+Situación: La app en producción comenzó a arrojar errores 429 ("Google se quedó sin aire") y 404, bloqueando el uso a los usuarios. Diagnóstico:
+
+El modelo gemini-1.5-flash-latest fue deprecado o no encontrado por la librería.
+
+Al actualizar a gemini-2.0-flash (estable), descubrimos que el límite gratuito es "0" para esa versión (requiere billing).
+
+Se detectó que la librería @google/generative-ai estaba desactualizada.
+
+🛠️ Implementación: "El Plan Hidra" (Multi-Modelo) Transformamos el backend (route.ts) para que no dependa de un solo proveedor.
+
+Integración de Groq: Sumamos el modelo llama-3.3-70b-versatile (Open Source, rapidísimo) vía groq-sdk.
+
+Enroque Táctico: Ante los fallos de Google, promovimos a Groq como motor TITULAR.
+
+Sistema de Respaldo:
+
+Titular: Groq (Llama 3.3).
+
+Suplente: Gemini (Versión flash-latest o 2.0-flash-exp).
+
+Último Recurso: Modo "Solo Evidencia" (Tavily), que entrega links sin análisis de IA si todo lo demás falla.
+
+Limpieza de URLs: Mejoramos lib/utils.ts con una normalización agresiva (borrado de utm_source, etc.) para aumentar los aciertos de caché en Supabase.
+
+🎨 MEJORAS DE UX/UI (La Cara Visible)
+Share "Profesional": Reescribimos ResultCard.tsx. Ahora el botón "Copiar mensaje" genera un reporte completo con Emojis de Veredicto, Resumen, Link a la fuente y Link a la App.
+
+Monetización Sutil: Agregamos los botones de Cafecito y Ko-fi directamente en el Home (page.tsx) con animaciones de entrada, para que estén visibles sin ser invasivos.
+
+Footer: Actualizamos los créditos y links en layout.tsx.
+
+🏰 DEFINICIÓN DE ARQUITECTURA: "PROTOCOLO FORTALEZA"
+Para evitar saturaciones futuras y escalar a nivel "viral", dejamos delimitada la hoja de ruta técnica a implementar en la próxima sesión:
+
+Fase 1 (Logística): Recolección de múltiples API Keys de Google (Pool de rotación) y Cohere (Mercenario extra).
+
+Fase 2 (Memoria de Elefante): Activar pgvector en Supabase para búsqueda semántica (ahorro de IA en preguntas repetidas).
+
+Fase 3 (Control de Tráfico): Implementación de Upstash QStash para encolar pedidos en momentos de pico.
+
+Nueva Regla de Uso: Modificación del Rate Limit de "3 cada 3 horas" a "10 consultas por hora" (Ventana Deslizante).
+
+✅ Estado Actual: La app es funcional, usa Groq como cerebro principal y tiene un fallback de seguridad. El error 404/429 desapareció de la vista del usuario.
