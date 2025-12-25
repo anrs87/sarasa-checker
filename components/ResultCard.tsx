@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, ExternalLink, Coffee, DollarSign, Share2 } from 'lucide-react';
+import { Check, ExternalLink, Coffee, DollarSign, Share2, X, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Source {
@@ -20,12 +20,20 @@ interface ResultData {
 interface ResultCardProps {
     data: ResultData;
     userGuess: 'POSTA' | 'VERSO' | 'TIBIO' | null;
+    onReset: () => void; // <--- AGREGAMOS ESTA PROP PARA PODER CERRAR
 }
 
-export default function ResultCard({ data, userGuess }: ResultCardProps) {
+export default function ResultCard({ data, userGuess, onReset }: ResultCardProps) {
     const [copied, setCopied] = useState(false);
 
     const isFake = data.smoke_level > 50;
+
+    // --- HELPER PARA URLS SEGURAS ---
+    const getSafeUrl = (url: string) => {
+        if (!url) return '#';
+        if (url.startsWith('http')) return url;
+        return `https://${url}`;
+    };
 
     // --- LOGICA GAMIFICATION ---
     let badgeText = "";
@@ -47,12 +55,9 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
         }
     }
 
-    // --- NUEVA LÓGICA DE COPIADO INTELIGENTE ---
     const handleCopy = () => {
-        // Armamos un mensaje "Rich Text" para WhatsApp
         const emojiVerdict = data.verdict === 'VERDADERO' ? '✅' : data.verdict === 'FALSO' ? '❌' : '⚠️';
         const sourceLink = data.sources?.[0]?.url || 'Fuente no disponible';
-
         const fullMessage = `*${emojiVerdict} VEREDICTO: ${data.verdict}*\n\n"${data.title}"\n\n💬 ${data.diplomatic_message}\n\n🔍 Fuente: ${sourceLink}\n\n👉 Chequealo vos en: https://sarasa-checker.vercel.app`;
 
         navigator.clipboard.writeText(fullMessage);
@@ -61,7 +66,7 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
     };
 
     return (
-        <div className="w-full max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="w-full max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12 relative">
 
             {/* BADGE DEL PRODE */}
             {userGuess && (
@@ -74,7 +79,16 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
             )}
 
             {/* TARJETA PRINCIPAL */}
-            <div className="bg-white border-2 border-slate-900 rounded-xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+            <div className="bg-white border-2 border-slate-900 rounded-xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden relative">
+
+                {/* BOTÓN DE CERRAR (LA "X") */}
+                <button
+                    onClick={onReset}
+                    className="absolute top-4 right-4 z-20 bg-black/20 hover:bg-black/40 text-white p-2 rounded-full transition-colors backdrop-blur-sm"
+                    title="Cerrar y volver al inicio"
+                >
+                    <X size={20} />
+                </button>
 
                 {/* Encabezado */}
                 <div className={cn(
@@ -86,7 +100,7 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                 )}>
                     <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
-                    <h2 className="relative z-10 text-3xl md:text-4xl font-black uppercase italic tracking-tighter mb-2 drop-shadow-sm">
+                    <h2 className="relative z-10 text-3xl md:text-4xl font-black uppercase italic tracking-tighter mb-2 drop-shadow-sm pr-8 pl-8">
                         {data.verdict}
                     </h2>
                     <p className="relative z-10 text-lg font-bold opacity-90 line-clamp-2 px-4">
@@ -115,7 +129,7 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                         {data.summary}
                     </p>
 
-                    {/* NUEVO BOTÓN DE COMPARTIR MEJORADO */}
+                    {/* BOTÓN DE COMPARTIR */}
                     <div className="bg-slate-50 border-2 border-slate-200 rounded-lg p-4 relative group hover:border-slate-400 transition-colors">
                         <div className="absolute -top-3 left-4 bg-slate-700 text-white text-xs font-black px-3 py-1 rounded uppercase tracking-wider shadow-sm">
                             Compartir Resultado
@@ -142,16 +156,21 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                                 {data.sources.map((s, i) => (
                                     <li key={i} className="flex items-center justify-between gap-3 group">
                                         <a
-                                            href={s.url}
+                                            href={getSafeUrl(s.url)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="text-slate-600 hover:text-blue-600 hover:underline truncate flex-1 font-bold transition-colors"
                                         >
                                             {s.title || s.url}
                                         </a>
-                                        <span className="text-[10px] font-black px-2 py-1 rounded border bg-gray-100 text-gray-600 border-gray-200 flex items-center gap-1 shrink-0 uppercase">
+                                        <a
+                                            href={getSafeUrl(s.url)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[10px] font-black px-3 py-1.5 rounded border bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 text-slate-600 border-slate-200 flex items-center gap-1 shrink-0 uppercase transition-all cursor-pointer"
+                                        >
                                             🔗 WEB
-                                        </span>
+                                        </a>
                                     </li>
                                 ))}
                             </ul>
@@ -159,7 +178,7 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                     )}
                 </div>
 
-                {/* FOOTER */}
+                {/* FOOTER DONACIONES */}
                 <div className="bg-slate-50 p-6 border-t-2 border-slate-200 text-center space-y-4">
                     <p className="text-sm text-slate-500 font-medium">
                         Mantenemos esto a pulmón. Vos fijate de qué lado de la mecha te encontrás hoy:
@@ -184,6 +203,16 @@ export default function ResultCard({ data, userGuess }: ResultCardProps) {
                     </div>
                 </div>
             </div>
+
+            {/* BOTÓN VOLVER GRANDE (FUERA DE LA CARD) */}
+            <button
+                onClick={onReset}
+                className="w-full bg-slate-800 hover:bg-slate-900 text-slate-300 py-4 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg active:scale-95"
+            >
+                <RotateCcw size={20} />
+                Checkear otra cosa
+            </button>
+
         </div>
     );
 }

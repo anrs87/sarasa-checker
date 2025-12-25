@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Search, AlertTriangle, Coffee } from 'lucide-react'; // Saqué ShieldAlert porque estaba en el footer viejo
+import { Search, AlertTriangle, Coffee, DollarSign } from 'lucide-react';
 import ResultCard from '@/components/ResultCard';
 import GuessOverlay from '@/components/GuessOverlay';
 import RecentChecks from '@/components/RecentChecks';
@@ -13,6 +13,15 @@ export default function Home() {
   const [result, setResult] = useState<any>(null);
   const [userGuess, setUserGuess] = useState<'POSTA' | 'VERSO' | 'TIBIO' | null>(null);
   const [error, setError] = useState('');
+
+  // --- FUNCIÓN PARA LIMPIAR TODO Y VOLVER AL INICIO ---
+  const resetState = () => {
+    setResult(null);
+    setUserGuess(null);
+    setUrl('');
+    setLoading(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleCheck = async () => {
     // 1. VALIDACIÓN
@@ -65,6 +74,13 @@ export default function Home() {
     setLoading(false);
   };
 
+  // --- NUEVA FUNCIÓN: MANEJA EL CLICK EN EL HISTORIAL ---
+  const handleSelectFromHistory = (data: any) => {
+    setResult(data);
+    setUserGuess('TIBIO'); // Asumimos 'TIBIO' para mostrar el resultado directo sin jugar
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scrollea arriba
+  };
+
   return (
     <div className="flex flex-col items-center w-full py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
 
@@ -73,10 +89,13 @@ export default function Home() {
         <GuessOverlay onGuess={handleUserGuess} isLoading={!result} />
       )}
 
-      {/* HEADER CON LOGO DE SARASA */}
+      {/* HEADER CON LOGO DE SARASA (AHORA CLICKABLE PARA RESETEAR) */}
       <div className="text-center mb-8 space-y-4 max-w-3xl z-10 flex flex-col items-center">
-        <div className="relative w-full max-w-[280px] sm:max-w-[320px] h-auto aspect-[3/2]">
-          {/* Asegurate que este logo.jpg sea el de Sarasa Checker, no el tuyo personal */}
+        <div
+          onClick={resetState}
+          className="relative w-full max-w-[280px] sm:max-w-[320px] h-auto aspect-[3/2] cursor-pointer hover:scale-105 transition-transform"
+          title="Volver al inicio"
+        >
           <Image
             src="/logo.jpg"
             alt="Sarasa Checker Logo"
@@ -91,40 +110,42 @@ export default function Home() {
         </p>
       </div>
 
-      {/* INPUT BUSCADOR */}
-      <div className="w-full max-w-xl z-10 mb-6">
-        <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+      {/* INPUT BUSCADOR (SOLO SE VE SI NO HAY RESULTADO) */}
+      {!result && !loading && (
+        <div className="w-full max-w-xl z-10 mb-6 animate-in fade-in slide-in-from-bottom-4">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
 
-          <div className="relative bg-white rounded-lg p-2 shadow-xl flex items-center">
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="Pegá el link o texto sospechoso..."
-              className="block w-full p-4 text-lg text-gray-900 placeholder-gray-500 bg-transparent border-none outline-none focus:ring-0"
-              onKeyDown={(e) => e.key === 'Enter' && handleCheck()}
-            />
-            <button
-              onClick={handleCheck}
-              disabled={loading && !result}
-              className="bg-primary hover:bg-primary/90 text-white p-4 rounded-md transition-all font-bold tracking-wide flex items-center gap-2"
-            >
-              {(loading && !result) ? '...' : <Search size={24} />}
-            </button>
+            <div className="relative bg-white rounded-lg p-2 shadow-xl flex items-center">
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="Pegá el link o texto sospechoso..."
+                className="block w-full p-4 text-lg text-gray-900 placeholder-gray-500 bg-transparent border-none outline-none focus:ring-0"
+                onKeyDown={(e) => e.key === 'Enter' && handleCheck()}
+              />
+              <button
+                onClick={handleCheck}
+                disabled={loading && !result}
+                className="bg-primary hover:bg-primary/90 text-white p-4 rounded-md transition-all font-bold tracking-wide flex items-center gap-2"
+              >
+                <Search size={24} />
+              </button>
+            </div>
+            <p className="text-xs text-center mt-3 text-gray-400">
+              Tip: Si tiene candadito (Paywall), copiá y pegá el texto.
+            </p>
           </div>
-          <p className="text-xs text-center mt-3 text-gray-400">
-            Tip: Si tiene candadito (Paywall), copiá y pegá el texto.
-          </p>
+
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-200">
+              <AlertTriangle size={20} />
+              {error}
+            </div>
+          )}
         </div>
-
-        {error && (
-          <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-200">
-            <AlertTriangle size={20} />
-            {error}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* BOTONES DE DONACIÓN (Solo visibles en Home) */}
       {!result && !loading && (
@@ -144,7 +165,7 @@ export default function Home() {
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full text-sm font-medium transition-colors border border-slate-200"
           >
-            <span className="text-green-600 font-bold">$</span>
+            <DollarSign size={16} className="text-green-600" />
             Tirame un centro
           </a>
         </div>
@@ -152,15 +173,14 @@ export default function Home() {
 
       {/* TARJETA DE RESULTADO */}
       {result && userGuess && (
-        <ResultCard data={result} userGuess={userGuess} />
+        <ResultCard data={result} userGuess={userGuess} onReset={resetState} />
       )}
 
-      {/* MURO DE LA VERDAD */}
+      {/* MURO DE LA VERDAD (SOLO SE VE SI NO HAY RESULTADO) */}
       {!result && !loading && (
-        <RecentChecks />
+        <RecentChecks onSelect={handleSelectFromHistory} />
       )}
 
-      {/* AQUÍ ELIMINAMOS EL FOOTER VIEJO PORQUE YA ESTÁ EN LAYOUT.TSX */}
     </div>
   );
 }

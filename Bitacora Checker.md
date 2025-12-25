@@ -223,9 +223,63 @@ Recopilar feedback de los primeros usuarios (amigos/familia).
 
 Evaluar si activar el "Modo Oscuro" nativo en toda la web para coincidir mejor con la estética Cyberpunk del logo.
 
-¡De una, socio! Acá tenés el resumen listo para copiar y pegar en tu Bitacora Checker.md.
 
-Lo escribí manteniendo el estilo "de trinchera" que venimos llevando, documentando la batalla contra los errores de Google, la aparición heroica de Groq y el plan maestro que definimos para el futuro.
+📔 Bitácora de Desarrollo: Sarasa Checker
+Fecha: 23 de Diciembre, 2025 Tema: Crisis de Cuota, Fantasmas de Cache y Arquitectura de Producto.
+
+1. El Problema: "El Código Fantasma" y el Muro 429
+Iniciamos la sesión con un error persistente: Quota exceeded (Error 429).
+
+Síntoma: La terminal mostraba Consultando a Gemini 1.5... (log nuevo) pero Google respondía con errores del modelo 2.0 o Limit: 0.
+
+Diagnóstico Técnico: Next.js mantenía versiones cacheadas del backend. Aunque cambiábamos el código, el servidor ejecutaba lógica vieja.
+
+Acción Correctiva: Borrado manual y recurrente de la carpeta .next para forzar la recompilación real. Probamos modelos como gemini-1.5-flash-8b, gemini-2.0-flash-lite y gemini-2.0-flash estándar.
+
+2. El Descubrimiento: "Morir de Éxito"
+A pesar de crear API Keys nuevas y proyectos nuevos ("Checker Sarasa"), el error limit: 0 persistía.
+
+La Causa Raíz: La aplicación estaba publicada en Vercel y tenía tráfico real de usuarios.
+
+El Conflicto: El entorno de Producción (Vercel) y el de Desarrollo (Localhost) compartían la misma "manguera" (Proyecto de Google). Los usuarios agotaron la cuota diaria (Free Tier) dejando el tanque vacío para el desarrollo local.
+
+Lección: Un proyecto en producción jamás debe compartir credenciales con el entorno de pruebas.
+
+3. Diagnóstico de UX y Datos ("La Intuición")
+Al analizar el comportamiento "chamánico" del sistema, detectamos fallas de diseño:
+
+Esquizofrenia en UI: El Frontend mostraba un badge verde ("¡Estás afilado!") incluso cuando el Backend fallaba y devolvía un error manejado ("Google se quedó sin aire"). Mensaje contradictorio para el usuario.
+
+Base de Datos Muda: La tabla request_logs tenía entradas (intentos), pero la tabla checks estaba vacía.
+
+Razón: El código fallaba en la llamada a la API (Línea 80 aprox) y saltaba al catch, nunca llegando a la línea de inserción en checks. Estamos perdiendo data valiosa de fallos.
+
+4. Estrategia de Escalabilidad e Inversión (Next Steps)
+Para transformar el experimento en un producto robusto:
+
+🛠️ Arquitectura
+Segregación de Entornos:
+
+Local: Proyecto Google "Sarasa-Dev" (Free Tier, exclusivo para mí).
+
+Producción: Proyecto Google "Sarasa-Prod" (Blindado).
+
+💰 Inversión Inteligente (Low Cost)
+Plan: Migrar el proyecto de Producción a Google Cloud (Pay-as-you-go/Blaze).
+
+Modelo: Usar Gemini 1.5 Flash.
+
+Costo estimado: ~$0.075 USD / 1M tokens (baratísimo).
+
+Seguridad Financiera: Configurar Budget Alerts en GCP con un tope duro (ej: USD $5/mes) que corte el servicio si se excede. Dormir tranquilo sin facturas sorpresa.
+
+🧠 Calidad y Ética (Mitigación de Sesgos)
+Temperatura: Bajar temperature a 0.2 o 0.3 en generationConfig para respuestas más fácticas y menos "creativas".
+
+Grounding: Endurecer el Prompt para que obligatoriamente base el veredicto en las fuentes de Tavily y no en su conocimiento pre-entrenado.
+
+5. Conclusión de la Sesión
+Pasamos de intentar arreglar una línea de código a replantear la arquitectura del negocio. El problema no era el código, era la gestión de recursos compartidos en una app que empezó a tener tracción real.
 
 📅 Bitácora de Avance - Sarasa Checker (Sesión de Emergencia & Evolución)
 🚨 CRISIS Y SOLUCIÓN (El Problema de Gemini)
