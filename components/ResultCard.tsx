@@ -1,3 +1,5 @@
+'use client'; // <--- ¡ESTA LÍNEA ES LA CLAVE! AGREGALA SI O SI.
+
 import { useState } from 'react';
 import { Check, ExternalLink, Coffee, DollarSign, Share2, X, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
