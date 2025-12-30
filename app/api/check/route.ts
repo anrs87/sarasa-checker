@@ -47,9 +47,7 @@ export async function POST(req: Request) {
     if (imageBase64) {
       console.log('👁️ Analizando imagen con Gemini Vision...');
       try {
-        // CORRECCIÓN FINAL: Usamos 'gemini-flash-latest' (sin el 1.5) que es el que funciona en tu cuenta
         const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
-
         const prompt = "Actúa como un extractor OCR inteligente. Analiza esta imagen. Si ves una noticia, tuit o cadena de whatsapp, extrae SOLAMENTE la afirmación principal o el título y el cuerpo del texto. Ignora hora, batería o menús del celular. Dame el texto puro.";
 
         const mimeType = imageBase64.substring(imageBase64.indexOf(':') + 1, imageBase64.indexOf(';'));
@@ -102,7 +100,6 @@ export async function POST(req: Request) {
     // --- PASO 2: INVESTIGACIÓN (Tavily) ---
     console.log('🕵️ Investigando con Tavily...');
 
-    // Recorte de seguridad para Tavily (Max 300 chars)
     const searchVal = userQuery.length > 300 ? userQuery.slice(0, 300) : userQuery;
 
     const searchResult = await tvly.search(searchVal, {
@@ -136,7 +133,7 @@ export async function POST(req: Request) {
       try {
         console.log('🧠 [Intento 2] Activando Respaldo Gemini...');
         const model = genAI.getGenerativeModel({
-          model: "gemini-flash-latest", // <--- Acá también usamos el nombre correcto
+          model: "gemini-flash-latest",
           generationConfig: { responseMimeType: "application/json" }
         });
         const prompt = `${SYSTEM_PROMPT}\nInput Usuario: "${userQuery}"\nFuentes: ${context}`;
@@ -157,15 +154,15 @@ export async function POST(req: Request) {
       }
     }
 
-    // --- PASO 4: GUARDADO ---
+    // --- PASO 4: GUARDADO CON DEBUG ---
     let savedId = null;
 
     if (verificationResult) {
       verificationResult.sources = realSources;
 
-      console.log(`💾 Guardando (Motor: ${aiModelUsed})...`);
+      console.log(`💾 Intentando guardar en Supabase (Motor: ${aiModelUsed})...`);
 
-      const { data: insertedData } = await supabase.from('checks').insert({
+      const { data: insertedData, error: insertError } = await supabase.from('checks').insert({
         original_text_url: normalizedQuery,
         gemini_verdict: verificationResult,
         smoke_level: verificationResult.smoke_level || 50,
@@ -175,7 +172,13 @@ export async function POST(req: Request) {
         .select('id')
         .single();
 
+      // DEBUGGER DE SUPABASE: Si falla, esto sale en rojo en los logs
+      if (insertError) {
+        console.error("🔴 ERROR CRÍTICO SUPABASE:", JSON.stringify(insertError, null, 2));
+      }
+
       if (insertedData) {
+        console.log("✅ Guardado exitoso. ID:", insertedData.id);
         savedId = insertedData.id;
       }
     }
@@ -186,7 +189,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    console.error('💥 Error Crítico:', error.message);
+    console.error('💥 Error Crítico General:', error.message);
     return NextResponse.json({ error: 'Explotó todo. Probá en un rato.' }, { status: 500 });
   }
 }
