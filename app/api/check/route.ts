@@ -43,15 +43,15 @@ export async function POST(req: Request) {
 
     // --- FASE 0: PRE-PROCESAMIENTO ---
 
-    // CASO A: IMAGEN (Con el nombre de modelo CORREGIDO)
+    // CASO A: IMAGEN
     if (imageBase64) {
       console.log('👁️ Analizando imagen con Gemini Vision...');
       try {
-        // CORRECCIÓN: Usamos 'gemini-1.5-flash-latest' que es el alias seguro
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        // CORRECCIÓN FINAL: Usamos 'gemini-flash-latest' (sin el 1.5) que es el que funciona en tu cuenta
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
         const prompt = "Actúa como un extractor OCR inteligente. Analiza esta imagen. Si ves una noticia, tuit o cadena de whatsapp, extrae SOLAMENTE la afirmación principal o el título y el cuerpo del texto. Ignora hora, batería o menús del celular. Dame el texto puro.";
 
-        // Detectamos el tipo real de imagen
         const mimeType = imageBase64.substring(imageBase64.indexOf(':') + 1, imageBase64.indexOf(';'));
         const base64Data = imageBase64.split(',')[1];
 
@@ -69,7 +69,6 @@ export async function POST(req: Request) {
 
       } catch (visionError: any) {
         console.error('⚠️ Falló la visión:', visionError.message);
-        // Fallback mejorado: Si falla la visión, avisamos específico
         return NextResponse.json({ error: `La IA no pudo ver la imagen (Error: ${visionError.message}). Probá con texto.` }, { status: 500 });
       }
     }
@@ -136,9 +135,8 @@ export async function POST(req: Request) {
       console.error('❌ Groq falló:', groqError.message);
       try {
         console.log('🧠 [Intento 2] Activando Respaldo Gemini...');
-        // Acá también usamos el alias seguro por las dudas
         const model = genAI.getGenerativeModel({
-          model: "gemini-1.5-flash-latest",
+          model: "gemini-flash-latest", // <--- Acá también usamos el nombre correcto
           generationConfig: { responseMimeType: "application/json" }
         });
         const prompt = `${SYSTEM_PROMPT}\nInput Usuario: "${userQuery}"\nFuentes: ${context}`;
