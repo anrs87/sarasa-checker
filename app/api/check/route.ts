@@ -43,25 +43,24 @@ export async function POST(req: Request) {
 
     // --- FASE 0: PRE-PROCESAMIENTO ---
 
-    // CASO A: IMAGEN (Con detección dinámica de formato)
+    // CASO A: IMAGEN (Con el nombre de modelo CORREGIDO)
     if (imageBase64) {
       console.log('👁️ Analizando imagen con Gemini Vision...');
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // CORRECCIÓN: Usamos 'gemini-1.5-flash-latest' que es el alias seguro
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
         const prompt = "Actúa como un extractor OCR inteligente. Analiza esta imagen. Si ves una noticia, tuit o cadena de whatsapp, extrae SOLAMENTE la afirmación principal o el título y el cuerpo del texto. Ignora hora, batería o menús del celular. Dame el texto puro.";
 
-        // --- FIX: Detectamos el tipo real de imagen (PNG, JPG, WEBP) ---
-        // Extraemos 'image/png' de 'data:image/png;base64,...'
+        // Detectamos el tipo real de imagen
         const mimeType = imageBase64.substring(imageBase64.indexOf(':') + 1, imageBase64.indexOf(';'));
         const base64Data = imageBase64.split(',')[1];
 
         const imagePart = {
           inlineData: {
             data: base64Data,
-            mimeType: mimeType || "image/jpeg" // Fallback a jpeg si no encuentra
+            mimeType: mimeType || "image/jpeg"
           }
         };
-        // -------------------------------------------------------------
 
         const result = await model.generateContent([prompt, imagePart]);
         const extractedText = result.response.text();
@@ -70,7 +69,8 @@ export async function POST(req: Request) {
 
       } catch (visionError: any) {
         console.error('⚠️ Falló la visión:', visionError.message);
-        return NextResponse.json({ error: 'No pudimos leer la imagen. Probá escribir el texto.' }, { status: 500 });
+        // Fallback mejorado: Si falla la visión, avisamos específico
+        return NextResponse.json({ error: `La IA no pudo ver la imagen (Error: ${visionError.message}). Probá con texto.` }, { status: 500 });
       }
     }
 
@@ -103,8 +103,7 @@ export async function POST(req: Request) {
     // --- PASO 2: INVESTIGACIÓN (Tavily) ---
     console.log('🕵️ Investigando con Tavily...');
 
-    // FIX CRÍTICO: Recortamos la query para que Tavily no explote (Max 300 chars)
-    // El análisis posterior SI usa el texto completo (userQuery)
+    // Recorte de seguridad para Tavily (Max 300 chars)
     const searchVal = userQuery.length > 300 ? userQuery.slice(0, 300) : userQuery;
 
     const searchResult = await tvly.search(searchVal, {
@@ -137,8 +136,9 @@ export async function POST(req: Request) {
       console.error('❌ Groq falló:', groqError.message);
       try {
         console.log('🧠 [Intento 2] Activando Respaldo Gemini...');
+        // Acá también usamos el alias seguro por las dudas
         const model = genAI.getGenerativeModel({
-          model: "gemini-flash-latest",
+          model: "gemini-1.5-flash-latest",
           generationConfig: { responseMimeType: "application/json" }
         });
         const prompt = `${SYSTEM_PROMPT}\nInput Usuario: "${userQuery}"\nFuentes: ${context}`;
