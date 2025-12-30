@@ -16,7 +16,6 @@ const supabase = createClient(
 
 export const maxDuration = 60;
 
-// PROMPT ACTUALIZADO: Le prohibimos poner links en el mensaje diplomático
 const SYSTEM_PROMPT = `
   Actúa como "El Avivador", experto verificador argentino. 
   Personalidad: Directo, usas lunfardo sutil ("es humo", "la posta", "ojo al piojo").
@@ -92,19 +91,21 @@ export async function POST(req: Request) {
 
     if (cachedData && !dbError) {
       console.log('⚡ ¡Encontrado en Cache!');
-      // Devolvemos también el ID para que funcione el permalink en resultados cacheados
       return NextResponse.json({ ...cachedData.gemini_verdict, id: cachedData.id });
     }
 
     // --- PASO 2: INVESTIGACIÓN (Tavily) ---
     console.log('🕵️ Investigando con Tavily...');
-    const searchResult = await tvly.search(userQuery, {
+
+    // FIX CRÍTICO: Recortamos la query para que Tavily no explote (Max 400 chars)
+    const searchVal = userQuery.length > 300 ? userQuery.slice(0, 300) : userQuery;
+
+    const searchResult = await tvly.search(searchVal, {
       searchDepth: "advanced",
       maxResults: 5,
     });
 
     const context = searchResult.results.map((r: any) => `${r.title}: ${r.content}`).join('\n');
-    // ESTAS SON LAS FUENTES REALES (LINKS COMPLETOS)
     const realSources = searchResult.results.map((r: any) => ({ title: r.title, url: r.url }));
 
     // --- PASO 3: CEREBRO HÍBRIDO ---
@@ -151,11 +152,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // --- PASO 4: GUARDADO Y CURACIÓN DE FUENTES ---
+    // --- PASO 4: GUARDADO ---
     let savedId = null;
 
     if (verificationResult) {
-      // 🚨 INYECCIÓN DE VERDAD: Pisamos las fuentes de la IA con las de Tavily
       verificationResult.sources = realSources;
 
       console.log(`💾 Guardando (Motor: ${aiModelUsed})...`);
@@ -167,7 +167,7 @@ export async function POST(req: Request) {
         verdict: verificationResult.verdict,
         title: verificationResult.title
       })
-        .select('id') // Pedimos el ID de vuelta
+        .select('id')
         .single();
 
       if (insertedData) {
@@ -175,7 +175,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Devolvemos el resultado + el ID para compartir
     return NextResponse.json({
       ...verificationResult,
       id: savedId
