@@ -326,3 +326,42 @@ Fase 3 (Control de Tráfico): Implementación de Upstash QStash para encolar ped
 Nueva Regla de Uso: Modificación del Rate Limit de "3 cada 3 horas" a "10 consultas por hora" (Ventana Deslizante).
 
 ✅ Estado Actual: La app es funcional, usa Groq como cerebro principal y tiene un fallback de seguridad. El error 404/429 desapareció de la vista del usuario.
+
+🗓️ SESIÓN: PULIDO DE UX Y NAVEGACIÓN (Operación "Dedos Torpes")
+Estado: ✅ Bugs Críticos Resueltos | 🔄 Navegación Cíclica Activada
+
+🛠️ 1. Reparación de Enlaces (Mobile First)
+Problema: En Android, los botones de "WEB" en las fuentes eran meros adornos (<span>). Se veían lindos pero no hacían nada al tocarles, o el área táctil era muy chica. Solución (ResultCard.tsx):
+
+Convertimos el botón visual en un tag <a> real.
+
+Implementamos getSafeUrl para sanitizar links (si vienen sin https://, se lo agregamos a la fuerza para que el navegador no chille).
+
+Ahora el dedo entra sí o sí.
+
+🧠 2. Muro de la Verdad Interactivo
+Problema: La lista de "Recién salidos del horno" (RecentChecks.tsx) era estática. Podías ver el título pero no podías entrar a ver el chisme completo. Solución:
+
+Backend (Supabase): Ahora traemos toda la data (resumen, mensaje, fuentes) en la consulta, no solo el título.
+
+Frontend: Agregamos el evento onClick a las tarjetas del historial.
+
+Lógica (page.tsx): Creamos handleSelectFromHistory. Al tocar un item viejo, la app lo carga arriba, asume que sos "Tibio" (para saltar el prode) y te scrollea suavemente al resultado.
+
+🛡️ 3. Protocolo de Escape (Navegación)
+Problema: "Efecto Ratonera". Una vez que veías un resultado (tuyo o del historial), desaparecía el buscador y no había botón para volver atrás sin recargar la página. Solución ("La Salida de Emergencia"):
+
+Botón "X": Agregamos una cruz discreta en la esquina de la tarjeta de resultados.
+
+Botón "🔄 Checkear otra cosa": Un botón gigante al pie de la tarjeta para incitar a seguir jugando.
+
+Logo Interactivo: Ahora si tocás el logo de Sarasa Checker, resetea el estado y te lleva al home (resetState).
+
+🚑 4. Cirugía de TypeScript
+Problema: El compilador gritaba Property 'verdict' does not exist on type 'never' porque la función auxiliar no sabía qué estructura tenía el JSON guardado. Solución:
+
+Relajamos el tipado a any en getCardStyle dentro de RecentChecks.tsx para manejar tanto los registros viejos (string simple) como los nuevos (JSON completo) sin romper el build.
+
+Resumen del Commit:
+
+"Fix navigation flow: interactive history, working external links, and reset state functionality."

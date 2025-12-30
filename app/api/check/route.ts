@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { tavily } from '@tavily/core';
 import Groq from 'groq-sdk';
 import { NextResponse } from 'next/server';
-import { normalizeUrl } from '@/lib/utils';
+import { normalizeUrl, extractSocialContent } from '@/lib/utils';
 
 // 1. Configuración de Clientes
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
@@ -35,20 +35,64 @@ const SYSTEM_PROMPT = `
 
 export async function POST(req: Request) {
   try {
-    const { urlOrText: userQuery } = await req.json();
+    // AHORA LEEMOS TAMBIÉN imageBase64
+    let { urlOrText: userQuery, imageBase64 } = await req.json();
 
-    if (!userQuery) {
-      return NextResponse.json({ error: 'Falta el texto, che.' }, { status: 400 });
+    if (!userQuery && !imageBase64) {
+      return NextResponse.json({ error: 'Falta data, che (texto, link o foto).' }, { status: 400 });
     }
 
-    // --- PASO 1: CACHE ---
+    // --- FASE 0: PRE-PROCESAMIENTO (Ojo de Águila & Desenrollador) ---
+
+    // CASO A: IMAGEN (Prioridad 1)
+    if (imageBase64) {
+      console.log('👁️ Analizando imagen con Gemini Vision...');
+      try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const prompt = "Actúa como un extractor OCR inteligente. Analiza esta imagen. Si ves una noticia, tuit o cadena de whatsapp, extrae SOLAMENTE la afirmación principal o el título y el cuerpo del texto. Ignora hora, batería o menús del celular. Dame el texto puro.";
+
+        const imagePart = {
+          inlineData: {
+            data: imageBase64.split(',')[1], // Sacamos el header 'data:image/...'
+            mimeType: "image/jpeg" // Asumimos jpeg/png, Gemini se la banca
+          }
+        };
+
+        const result = await model.generateContent([prompt, imagePart]);
+        const extractedText = result.response.text();
+        console.log(`👁️ Texto extraído: "${extractedText.substring(0, 50)}..."`);
+
+        // REEMPLAZAMOS el input por lo que vio la IA
+        userQuery = extractedText;
+
+      } catch (visionError) {
+        console.error('⚠️ Falló la visión:', visionError);
+        return NextResponse.json({ error: 'No pudimos leer la imagen. Probá escribir el texto.' }, { status: 500 });
+      }
+    }
+
+    // CASO B: LINK SOCIAL (Prioridad 2)
+    else if (userQuery.includes('facebook.com') || userQuery.includes('instagram.com') || userQuery.includes('share')) {
+      console.log('🕵️ Intentando desenrollar link social...');
+      const socialContent = await extractSocialContent(userQuery);
+      if (socialContent) {
+        console.log('✅ Texto recuperado de redes.');
+        userQuery = socialContent;
+      } else {
+        console.log('⚠️ Red social blindada. Intentaremos buscar la URL igual.');
+      }
+    }
+
+
+    // --- PASO 1: CACHE (Ahora busca el TEXTO real, no la URL rota) ---
     const normalizedQuery = normalizeUrl(userQuery);
-    console.log(`🔍 Buscando en caché: ${normalizedQuery}`);
+    console.log(`🔍 Buscando en caché: ${normalizedQuery.substring(0, 50)}...`);
 
     const { data: cachedData, error: dbError } = await supabase
       .from('checks')
       .select('*')
-      .ilike('original_text_url', `%${normalizedQuery}%`)
+      // Usamos ilike con wildcards para encontrar coincidencias parciales del texto
+      .ilike('original_text_url', `%${normalizedQuery.substring(0, 100)}%`)
       .limit(1)
       .single();
 
@@ -71,7 +115,7 @@ export async function POST(req: Request) {
     let verificationResult = null;
     let aiModelUsed = 'groq';
 
-    // INTENTO A: GROQ (Llama 3.3) - ¡AHORA ES EL PRIMERO!
+    // INTENTO A: GROQ (Llama 3.3)
     try {
       console.log('🚀 [Intento 1] Consultando a Groq (Llama 3.3)...');
 
@@ -87,7 +131,6 @@ export async function POST(req: Request) {
 
       const content = chatCompletion.choices[0]?.message?.content || "{}";
       verificationResult = JSON.parse(content);
-      // aiModelUsed ya es 'groq'
 
     } catch (groqError: any) {
       console.error('❌ Groq falló:', groqError.message);
@@ -96,7 +139,6 @@ export async function POST(req: Request) {
       try {
         console.log('🧠 [Intento 2] Activando Respaldo Gemini...');
 
-        // Usamos el alias genérico que aparecía en tu lista, suele ser más permisivo
         const model = genAI.getGenerativeModel({
           model: "gemini-flash-latest",
           generationConfig: { responseMimeType: "application/json" }
@@ -133,7 +175,7 @@ export async function POST(req: Request) {
 
       console.log(`💾 Guardando (Motor: ${aiModelUsed})...`);
       await supabase.from('checks').insert({
-        original_text_url: normalizedQuery,
+        original_text_url: normalizedQuery, // Guardamos el TEXTO extraído
         gemini_verdict: verificationResult,
         smoke_level: verificationResult.smoke_level || 50,
         verdict: verificationResult.verdict,
