@@ -14,25 +14,48 @@ export default function Home() {
   const [userGuess, setUserGuess] = useState<'POSTA' | 'VERSO' | 'TIBIO' | null>(null);
   const [error, setError] = useState('');
 
-  // --- NUEVO ESTADO PARA IMAGEN ---
+  // --- ESTADO PARA IMAGEN ---
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Procesar archivo (sea por botón o por paste)
+  const processFile = (file: File) => {
+    if (file.size > 4 * 1024 * 1024) { // 4MB límite
+      setError('Esa imagen es muy pesada. Buscate una más liviana.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedImage(reader.result as string);
+      setError('');
+      setUrl(''); // Limpiamos texto para evitar confusión
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 4 * 1024 * 1024) { // 4MB límite
-        setError('Esa imagen es muy pesada. Buscate una más liviana.');
+      processFile(file);
+    }
+  };
+
+  // --- NUEVA FUNCIÓN: MANEJO DE PEGAR (CTRL+V) ---
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+
+    for (let i = 0; i < items.length; i++) {
+      // Si encontramos una imagen en el portapapeles
+      if (items[i].type.indexOf('image') !== -1) {
+        e.preventDefault(); // Evitamos que intente pegar el nombre del archivo como texto
+        const file = items[i].getAsFile();
+        if (file) {
+          processFile(file); // Reusamos la lógica de subida
+        }
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-        setError('');
-        setUrl(''); // Limpiamos texto para evitar confusión
-      };
-      reader.readAsDataURL(file);
     }
+    // Si no es imagen, dejamos que el texto se pegue normal en el input
   };
 
   const clearImage = () => {
@@ -40,7 +63,6 @@ export default function Home() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // --- FUNCIÓN PARA LIMPIAR TODO ---
   const resetState = () => {
     setResult(null);
     setUserGuess(null);
@@ -51,7 +73,6 @@ export default function Home() {
   };
 
   const handleCheck = async () => {
-    // 1. VALIDACIÓN HÍBRIDA
     if (!url.trim() && !selectedImage) return;
 
     if (!selectedImage && url.trim().length < 5) {
@@ -70,7 +91,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           urlOrText: url,
-          imageBase64: selectedImage // Mandamos la foto si hay
+          imageBase64: selectedImage
         }),
       });
 
@@ -78,7 +99,7 @@ export default function Home() {
 
       if (data.error) throw new Error(data.error);
 
-      // --- GUARDADO LOCAL SILENCIOSO ---
+      // Guardado Local
       const history = JSON.parse(localStorage.getItem('sarasa_history') || '[]');
       const newEntry = {
         url: selectedImage ? '📸 Análisis de Imagen' : url,
@@ -89,7 +110,6 @@ export default function Home() {
       localStorage.setItem('sarasa_history', JSON.stringify([newEntry, ...history].slice(0, 10)));
 
       setResult(data);
-      // Limpiamos imagen después del éxito
       if (selectedImage) clearImage();
 
     } catch (err: any) {
@@ -138,11 +158,10 @@ export default function Home() {
         </p>
       </div>
 
-      {/* --- INSTRUCCIONES VISUALES (Se ven si no hay resultado) --- */}
+      {/* INSTRUCCIONES VISUALES */}
       {!result && !loading && (
         <div className="flex justify-center gap-2 sm:gap-4 mb-6 w-full max-w-xl px-2 animate-in fade-in slide-in-from-bottom-3">
 
-          {/* OPCIÓN 1: LINK */}
           <div className="flex flex-col items-center gap-1 p-2 flex-1 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200 shadow-sm text-center hover:scale-105 transition-transform duration-200">
             <div className="p-2.5 bg-blue-100 text-blue-600 rounded-full mb-1">
               <LinkIcon size={20} />
@@ -153,7 +172,6 @@ export default function Home() {
             </span>
           </div>
 
-          {/* OPCIÓN 2: TEXTO */}
           <div className="flex flex-col items-center gap-1 p-2 flex-1 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200 shadow-sm text-center hover:scale-105 transition-transform duration-200">
             <div className="p-2.5 bg-purple-100 text-purple-600 rounded-full mb-1">
               <FileText size={20} />
@@ -164,7 +182,6 @@ export default function Home() {
             </span>
           </div>
 
-          {/* OPCIÓN 3: FOTO */}
           <div className="flex flex-col items-center gap-1 p-2 flex-1 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200 shadow-sm text-center cursor-pointer hover:bg-white hover:border-orange-200 hover:shadow-md hover:scale-105 transition-all duration-200 group"
             onClick={() => fileInputRef.current?.click()}
           >
@@ -188,7 +205,6 @@ export default function Home() {
 
             <div className="relative bg-white rounded-lg p-2 shadow-xl flex items-center gap-2">
 
-              {/* INPUT FILE OCULTO */}
               <input
                 type="file"
                 ref={fileInputRef}
@@ -197,7 +213,6 @@ export default function Home() {
                 onChange={handleImageUpload}
               />
 
-              {/* CONTENIDO DEL INPUT: TEXTO O PREVIEW DE IMAGEN */}
               {selectedImage ? (
                 <div className="flex-1 p-2 flex items-center justify-between bg-slate-100 rounded border border-slate-200">
                   <div className="flex items-center gap-3">
@@ -215,13 +230,13 @@ export default function Home() {
                   type="text"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="Pegá el link, texto o subí foto..."
+                  onPaste={handlePaste} // <--- ACÁ ESTÁ LA MAGIA DEL PEGAR
+                  placeholder="Pegá link, texto o captura (Ctrl+V)..." // Update del placeholder
                   className="block w-full p-4 text-lg text-gray-900 placeholder-gray-500 bg-transparent border-none outline-none focus:ring-0"
                   onKeyDown={(e) => e.key === 'Enter' && handleCheck()}
                 />
               )}
 
-              {/* BOTÓN CÁMARA (visible si no hay foto) */}
               {!selectedImage && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -232,7 +247,6 @@ export default function Home() {
                 </button>
               )}
 
-              {/* BOTÓN BUSCAR */}
               <button
                 onClick={handleCheck}
                 disabled={loading && !result}
@@ -244,7 +258,7 @@ export default function Home() {
 
             {!selectedImage && (
               <p className="text-xs text-center mt-3 text-gray-400">
-                Tip: Si es de Facebook/Insta y falla, sacale captura y subila 📸.
+                Tip: Podés pegar imágenes directamente con Ctrl+V.
               </p>
             )}
           </div>
@@ -258,7 +272,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* BOTONES DE DONACIÓN */}
+      {/* BOTONES DONACIÓN, RESULTCARD, RECENTCHECKS IGUAL QUE SIEMPRE */}
       {!result && !loading && !selectedImage && (
         <div className="flex flex-wrap justify-center gap-4 mb-12 animate-in fade-in zoom-in duration-700 delay-300">
           <a
@@ -282,12 +296,10 @@ export default function Home() {
         </div>
       )}
 
-      {/* TARJETA DE RESULTADO */}
       {result && userGuess && (
         <ResultCard data={result} userGuess={userGuess} onReset={resetState} />
       )}
 
-      {/* MURO DE LA VERDAD */}
       {!result && !loading && (
         <RecentChecks onSelect={handleSelectFromHistory} />
       )}
