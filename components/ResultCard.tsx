@@ -9,6 +9,7 @@ interface Source {
 }
 
 interface ResultData {
+    id?: string; // <--- AGREGADO: El ID para el link permanente
     verdict: 'VERDADERO' | 'FALSO' | 'DUDOSO' | 'SATIRA';
     smoke_level: number;
     title: string;
@@ -20,7 +21,7 @@ interface ResultData {
 interface ResultCardProps {
     data: ResultData;
     userGuess: 'POSTA' | 'VERSO' | 'TIBIO' | null;
-    onReset: () => void; // <--- AGREGAMOS ESTA PROP PARA PODER CERRAR
+    onReset?: () => void; // Lo hacemos opcional por si se usa en la página /share donde no hay reset
 }
 
 export default function ResultCard({ data, userGuess, onReset }: ResultCardProps) {
@@ -35,7 +36,7 @@ export default function ResultCard({ data, userGuess, onReset }: ResultCardProps
         return `https://${url}`;
     };
 
-    // --- LOGICA GAMIFICATION ---
+    // --- LOGICA GAMIFICATION (Tu lógica original) ---
     let badgeText = "";
     let badgeColor = "";
 
@@ -55,21 +56,35 @@ export default function ResultCard({ data, userGuess, onReset }: ResultCardProps
         }
     }
 
-    const handleCopy = () => {
-        const emojiVerdict = data.verdict === 'VERDADERO' ? '✅' : data.verdict === 'FALSO' ? '❌' : '⚠️';
-        const sourceLink = data.sources?.[0]?.url || 'Fuente no disponible';
-        const fullMessage = `*${emojiVerdict} VEREDICTO: ${data.verdict}*\n\n"${data.title}"\n\n💬 ${data.diplomatic_message}\n\n🔍 Fuente: ${sourceLink}\n\n👉 Chequealo vos en: https://sarasa-checker.vercel.app`;
+    // --- NUEVA LÓGICA DE COPIADO (PERMALINK) ---
+    const handleCopy = async () => {
+        // Detectamos si estamos en el cliente para usar window.location
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://sarasa-checker.vercel.app';
 
-        navigator.clipboard.writeText(fullMessage);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        // Si hay ID, armamos el link a la página /share/ID. Si no, al home.
+        const shareUrl = data.id
+            ? `${baseUrl}/share/${data.id}`
+            : baseUrl;
+
+        const emojiVerdict = data.verdict === 'VERDADERO' ? '✅' : data.verdict === 'FALSO' ? '❌' : '⚠️';
+
+        // Armamos el mensaje. Nota: Usamos shareUrl al final.
+        const fullMessage = `*${emojiVerdict} SARASA CHECKER: ${data.verdict}*\n\n"${data.title}"\n\n💬 ${data.diplomatic_message}\n\n👉 Mirá la prueba completa y las fuentes acá: ${shareUrl}`;
+
+        try {
+            await navigator.clipboard.writeText(fullMessage);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Error al copiar', err);
+        }
     };
 
     return (
         <div className="w-full max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12 relative">
 
-            {/* BADGE DEL PRODE */}
-            {userGuess && (
+            {/* BADGE DEL PRODE (Solo si el usuario jugó, o sea no es null) */}
+            {userGuess && userGuess !== 'TIBIO' && ( // Ocultamos si es TIBIO en modo share puro, o mostramos tu lógica original
                 <div className={cn(
                     "text-center py-2 px-6 rounded-full text-sm font-bold tracking-wide uppercase mx-auto w-fit shadow-lg text-white transform hover:scale-105 transition-transform",
                     badgeColor
@@ -81,14 +96,16 @@ export default function ResultCard({ data, userGuess, onReset }: ResultCardProps
             {/* TARJETA PRINCIPAL */}
             <div className="bg-white border-2 border-slate-900 rounded-xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden relative">
 
-                {/* BOTÓN DE CERRAR (LA "X") */}
-                <button
-                    onClick={onReset}
-                    className="absolute top-4 right-4 z-20 bg-black/20 hover:bg-black/40 text-white p-2 rounded-full transition-colors backdrop-blur-sm"
-                    title="Cerrar y volver al inicio"
-                >
-                    <X size={20} />
-                </button>
+                {/* BOTÓN DE CERRAR (Solo si existe la función onReset) */}
+                {onReset && (
+                    <button
+                        onClick={onReset}
+                        className="absolute top-4 right-4 z-20 bg-black/20 hover:bg-black/40 text-white p-2 rounded-full transition-colors backdrop-blur-sm"
+                        title="Cerrar y volver al inicio"
+                    >
+                        <X size={20} />
+                    </button>
+                )}
 
                 {/* Encabezado */}
                 <div className={cn(
@@ -142,7 +159,7 @@ export default function ResultCard({ data, userGuess, onReset }: ResultCardProps
                             className="w-full flex items-center justify-center gap-2 bg-white border-2 border-slate-300 hover:border-blue-500 hover:text-blue-700 text-slate-700 font-bold py-3 px-4 rounded-md transition-all shadow-sm active:translate-y-1"
                         >
                             {copied ? <Check size={20} className="text-green-600" /> : <Share2 size={20} />}
-                            {copied ? '¡Copiado al portapapeles!' : 'Copiar Informe Completo'}
+                            {copied ? '¡Link Copiado!' : 'Copiar Link del Chequeo'}
                         </button>
                     </div>
 
@@ -204,14 +221,16 @@ export default function ResultCard({ data, userGuess, onReset }: ResultCardProps
                 </div>
             </div>
 
-            {/* BOTÓN VOLVER GRANDE (FUERA DE LA CARD) */}
-            <button
-                onClick={onReset}
-                className="w-full bg-slate-800 hover:bg-slate-900 text-slate-300 py-4 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg active:scale-95"
-            >
-                <RotateCcw size={20} />
-                Checkear otra cosa
-            </button>
+            {/* BOTÓN VOLVER GRANDE (FUERA DE LA CARD) - SOLO SI HAY ONRESET */}
+            {onReset && (
+                <button
+                    onClick={onReset}
+                    className="w-full bg-slate-800 hover:bg-slate-900 text-slate-300 py-4 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg active:scale-95"
+                >
+                    <RotateCcw size={20} />
+                    Checkear otra cosa
+                </button>
+            )}
 
         </div>
     );
